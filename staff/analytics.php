@@ -1,3 +1,28 @@
+<?php
+// Minimal .env loader (no external deps). Loads KEY=VALUE pairs into $_ENV.
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(ltrim($line), '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
+            // Remove optional surrounding quotes
+            $len = strlen($value);
+            if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
+                $value = substr($value, 1, $len - 2);
+            }            
+            $_ENV[$key] = $value;
+        }
+    }
+}
+$SUPABASE_URL = $_ENV['SUPABASE_URL'] ?? '';
+$SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -20,6 +45,15 @@
     <link href="assets/js/morris/morris-0.4.3.min.css" rel="stylesheet" />
     <!-- html2pdf library for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Supabase JS v2 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Injected from server-side env. The anon key is safe to expose client-side.
+        window.__SUPABASE__ = {
+            url: "<?php echo htmlspecialchars($SUPABASE_URL, ENT_QUOTES, 'UTF-8'); ?>",
+            anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
+        };
+    </script>
     <style>
         body::-webkit-scrollbar {
             display: none;
@@ -468,7 +502,7 @@
                                 <h4><i class="fa fa-bar-chart-o"></i> Bookings Made vs Penalties Issued</h4>
                             </div>
                             <div class="panel-body">
-                                <div id="analytics-chart" style="height: 400px; display: none;"></div>
+                                <div id="analytics-chart" style="height: 500px; min-height: 500px; display: none; overflow: visible; margin-bottom: 40px; width: 100%;"></div>
                                 <div id="chart-legend" style="display: none; text-align: center; margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-top: 1px solid #e3e3e3;">
                                     <div style="display: inline-block;">
                                         <span id="legend-bookings" style="display: inline-flex; align-items: center; margin-right: 25px;">
@@ -562,320 +596,391 @@
     <script src="assets/js/morris/raphael-2.1.0.min.js"></script>
     <script src="assets/js/morris/morris.js"></script>
     <script>
-        var dataTable;
-        var morrisChart;
+        // Global variables
+        var supabase = null;
+        var currentUser = null;
+        var dataTable = null;
+        var morrisChart = null;
+        var allRecords = []; // Combined bookings and penalties from database
+        var podsData = [];
+        var usersData = [];
+        var masterAnalyticsData = null;
+        var analyticsData = [];
         
-        // Combined records data (bookings and penalties) - Spread across 2024-2025
-        // Note: Penalties can only exist with bookings (a user must book first to get a penalty)
-        var allRecords = [
-            // === 2024 DATA (Fluctuating amounts per month) ===
+        // Initialize Supabase and load data
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Supabase
+            const { createClient } = window.supabase || {};
+            if (!createClient) {
+                console.error('Supabase library failed to load.');
+                alert('Failed to load database connection. Please refresh the page.');
+                return;
+            }
+            supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
             
-            // January 2024 - 8 bookings, 2 penalties
-            { type: 'booking', username: 'johnsmith', date: '2024-01-05', details: '08:30 - 09:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'emmajohnson', date: '2024-01-08', details: '10:15 - 11:15 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'michaelbrown', date: '2024-01-12', details: '13:15 - 14:15 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'michaelbrown', date: '2024-01-12', details: 'Late cancellation', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'sarahdavis', date: '2024-01-15', details: '09:15 - 10:15 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'jameswalker', date: '2024-01-18', details: '14:00 - 15:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'mariagarcia', date: '2024-01-22', details: '10:30 - 11:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'mariagarcia', date: '2024-01-22', details: 'Overstayed booking', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'danielharris', date: '2024-01-25', details: '16:00 - 17:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'lisaanderson', date: '2024-01-28', details: '17:00 - 20:00 (3 hours)', pod: '3', status: 'completed' },
+            // Check if user is logged in
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+                // Redirect to login if not authenticated
+                window.location.href = '../login.php';
+                return;
+            }
             
-            // February 2024 - 5 bookings, 1 penalty
-            { type: 'booking', username: 'williammoore', date: '2024-02-03', details: '11:15 - 12:15 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'kevinmartin', date: '2024-02-10', details: '09:00 - 10:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'patriciawhite', date: '2024-02-14', details: '15:00 - 16:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'patriciawhite', date: '2024-02-14', details: 'No-show', pod: '4', status: 'paid' },
-            { type: 'booking', username: 'robertlee', date: '2024-02-20', details: '08:00 - 09:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'lindagreen', date: '2024-02-25', details: '12:00 - 13:00 (1 hour)', pod: '2', status: 'completed' },
+            currentUser = sessionData.session.user;
             
-            // March 2024 - 12 bookings, 3 penalties
-            { type: 'booking', username: 'charlesking', date: '2024-03-02', details: '14:30 - 16:00 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'barbarahill', date: '2024-03-05', details: '10:00 - 11:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'josephwright', date: '2024-03-08', details: '16:00 - 17:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'josephwright', date: '2024-03-08', details: 'Late cancellation', pod: '4', status: 'paid' },
-            { type: 'booking', username: 'nancyscott', date: '2024-03-11', details: '09:30 - 10:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'thomasmoore', date: '2024-03-14', details: '13:00 - 15:00 (2 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'susanharris', date: '2024-03-17', details: '11:00 - 12:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'davidclark', date: '2024-03-20', details: '08:30 - 09:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'davidclark', date: '2024-03-20', details: 'Overstayed booking', pod: '4', status: 'pending' },
-            { type: 'booking', username: 'jenniferlopez', date: '2024-03-23', details: '15:00 - 16:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'christophermartinez', date: '2024-03-26', details: '10:00 - 11:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'matthewgarcia', date: '2024-03-28', details: '14:00 - 15:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'matthewgarcia', date: '2024-03-28', details: 'No-show', pod: '1', status: 'paid' },
-            { type: 'booking', username: 'elizabethrodriguez', date: '2024-03-30', details: '09:00 - 10:00 (1 hour)', pod: '4', status: 'completed' },
+            // Load pods first (for lookups)
+            await loadPods();
+            console.log('Loaded pods:', podsData.length);
             
-            // April 2024 - 7 bookings, 2 penalties
-            { type: 'booking', username: 'anthonywilson', date: '2024-04-03', details: '08:00 - 09:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'dorothyanderson', date: '2024-04-08', details: '11:00 - 12:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'dorothyanderson', date: '2024-04-08', details: 'Late cancellation', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'paulthomas', date: '2024-04-12', details: '14:00 - 15:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'helentaylor', date: '2024-04-16', details: '10:00 - 11:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'markjackson', date: '2024-04-20', details: '09:00 - 10:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'bettywhite', date: '2024-04-24', details: '13:00 - 14:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'bettywhite', date: '2024-04-24', details: 'Overstayed booking', pod: '2', status: 'pending' },
-            { type: 'booking', username: 'stevenharris', date: '2024-04-28', details: '15:30 - 17:00 (1.5 hours)', pod: '3', status: 'completed' },
+            // Load bookings and penalties from database (this will also load users)
+            await loadAllRecords();
+            console.log('Loaded all records:', allRecords.length);
             
-            // May 2024 - 10 bookings, 1 penalty
-            { type: 'booking', username: 'ruthmartin', date: '2024-05-02', details: '08:30 - 09:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'edwardthompson', date: '2024-05-05', details: '11:30 - 13:00 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'karenmoore', date: '2024-05-08', details: '14:00 - 15:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'brianwalker', date: '2024-05-11', details: '09:00 - 10:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'carolallen', date: '2024-05-14', details: '16:00 - 17:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'ronaldyoung', date: '2024-05-17', details: '10:00 - 11:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'sandrahernandez', date: '2024-05-20', details: '13:30 - 14:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'sandrahernandez', date: '2024-05-20', details: 'No-show', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'kennethjones', date: '2024-05-23', details: '08:00 - 09:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'donnamiller', date: '2024-05-26', details: '15:00 - 16:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'kevindavis', date: '2024-05-29', details: '11:00 - 12:30 (1.5 hours)', pod: '1', status: 'completed' },
+            // Calculate analytics data from loaded records
+            masterAnalyticsData = calculateAnalyticsFromRecords();
+            analyticsData = masterAnalyticsData.daily;
+            console.log('Calculated analytics data:', masterAnalyticsData);
             
-            // June 2024 - 6 bookings, 3 penalties
-            { type: 'booking', username: 'laurawilson', date: '2024-06-04', details: '09:30 - 10:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'laurawilson', date: '2024-06-04', details: 'Late cancellation', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'jasonbrown', date: '2024-06-10', details: '14:00 - 15:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'jasonbrown', date: '2024-06-10', details: 'Overstayed booking', pod: '3', status: 'pending' },
-            { type: 'booking', username: 'sarahlee', date: '2024-06-15', details: '10:00 - 11:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'jeffreymartin', date: '2024-06-20', details: '12:00 - 13:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'michellegarcia', date: '2024-06-25', details: '08:30 - 09:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'michellegarcia', date: '2024-06-25', details: 'No-show', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'ryanrodriguez', date: '2024-06-28', details: '15:00 - 16:00 (1 hour)', pod: '3', status: 'completed' },
+            // Initialize DataTable and populate table (will be done in document.ready)
+            // DataTable initialization moved to document.ready to avoid conflicts
+        });
+        
+        // Load pods from database
+        async function loadPods() {
+            try {
+                const { data, error } = await supabase
+                    .from('pods')
+                    .select('id, name')
+                    .order('created_at', { ascending: true });
+                
+                if (error) {
+                    console.error('Error loading pods:', error);
+                    podsData = [];
+                    return;
+                }
+                
+                podsData = data || [];
+            } catch (error) {
+                console.error('Error in loadPods:', error);
+                podsData = [];
+            }
+        }
+        
+        // Load users from Supabase Auth via PHP endpoint
+        async function loadUsers(userIds) {
+            if (!userIds || userIds.length === 0) {
+                console.log('No user IDs to load');
+                return {};
+            }
             
-            // July 2024 - 9 bookings, 2 penalties
-            { type: 'booking', username: 'ashleymartinez', date: '2024-07-02', details: '11:00 - 12:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'timothyhernandez', date: '2024-07-06', details: '08:00 - 09:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'rachellopez', date: '2024-07-10', details: '13:00 - 14:30 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'rachellopez', date: '2024-07-10', details: 'Late cancellation', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'adamgonzalez', date: '2024-07-14', details: '10:00 - 11:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'melissaperez', date: '2024-07-18', details: '15:00 - 16:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'jacoblewis', date: '2024-07-22', details: '09:00 - 10:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'amberrobinson', date: '2024-07-25', details: '12:00 - 13:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'amberrobinson', date: '2024-07-25', details: 'Overstayed booking', pod: '2', status: 'pending' },
-            { type: 'booking', username: 'ethanhall', date: '2024-07-28', details: '14:00 - 15:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'rebeccaturner', date: '2024-07-31', details: '10:30 - 11:30 (1 hour)', pod: '4', status: 'completed' },
+            try {
+                console.log('Loading users from Auth API for user_ids:', userIds);
+                const response = await fetch('get_users_info.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_ids: userIds })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch users: ' + response.statusText);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Error loading users:', data.error);
+                    return {};
+                }
+                
+                if (data.users && Object.keys(data.users).length > 0) {
+                    console.log('Loaded users from Auth API:', Object.keys(data.users).length);
+                    
+                    // data.users is a map of user_id => { id, username, email }
+                    var usersMap = {};
+                    Object.keys(data.users).forEach(userId => {
+                        const user = data.users[userId];
+                        usersMap[userId] = user.username || (user.email ? user.email.split('@')[0] : 'User ' + userId.substring(0, 8));
+                    });
+                    
+                    return usersMap;
+                } else {
+                    console.warn('No users returned from Auth API');
+                    return {};
+                }
+            } catch (error) {
+                console.error('Error fetching users from Auth API:', error);
+                return {};
+            }
+        }
+        
+        // Load all bookings and penalties from database
+        async function loadAllRecords() {
+            try {
+                console.log('Loading bookings and penalties from database...');
+                
+                // Load all bookings
+                const { data: bookings, error: bookingsError } = await supabase
+                    .from('bookings')
+                    .select('id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people')
+                    .order('booking_date', { ascending: false })
+                    .order('check_in_time', { ascending: true });
+                
+                if (bookingsError) {
+                    console.error('Error loading bookings:', bookingsError);
+                    console.error('Bookings error details:', JSON.stringify(bookingsError, null, 2));
+                    
+                    // Check for RLS policy errors
+                    var errorMsg = bookingsError.message || bookingsError.toString() || '';
+                    if (errorMsg.includes('permission') || errorMsg.includes('policy') || errorMsg.includes('RLS') || errorMsg.includes('row-level security')) {
+                        console.error('RLS Policy Error: Staff/Admin may not have permission to view all bookings.');
+                        console.error('Please ensure RLS policies allow staff/admin users to SELECT all bookings.');
+                    }
+                    // Set bookings to empty array on error
+                    bookings = [];
+                } else {
+                    console.log('Loaded bookings:', bookings ? bookings.length : 0);
+                    if (bookings && bookings.length > 0) {
+                        console.log('First booking sample:', bookings[0]);
+                    }
+                }
+                
+                // Load all penalties
+                const { data: penalties, error: penaltiesError } = await supabase
+                    .from('penalties')
+                    .select('id, user_id, pod_id, booking_id, violation_type, penalty_amount, status, violation_date, violation_time')
+                    .order('violation_date', { ascending: false });
+                
+                if (penaltiesError) {
+                    console.error('Error loading penalties:', penaltiesError);
+                    console.error('Penalties error details:', JSON.stringify(penaltiesError, null, 2));
+                    
+                    // Check for RLS policy errors
+                    var errorMsg = penaltiesError.message || penaltiesError.toString() || '';
+                    if (errorMsg.includes('permission') || errorMsg.includes('policy') || errorMsg.includes('RLS') || errorMsg.includes('row-level security')) {
+                        console.error('RLS Policy Error: Staff/Admin may not have permission to view all penalties.');
+                        console.error('Please ensure RLS policies allow staff/admin users to SELECT all penalties.');
+                    }
+                    // Set penalties to empty array on error
+                    penalties = [];
+                } else {
+                    console.log('Loaded penalties:', penalties ? penalties.length : 0);
+                    if (penalties && penalties.length > 0) {
+                        console.log('First penalty sample:', penalties[0]);
+                    }
+                }
+                
+                // Collect all unique user IDs from bookings and penalties
+                var userIds = new Set();
+                if (bookings && bookings.length > 0) {
+                    bookings.forEach(function(booking) {
+                        if (booking.user_id) {
+                            userIds.add(booking.user_id);
+                        }
+                    });
+                }
+                if (penalties && penalties.length > 0) {
+                    penalties.forEach(function(penalty) {
+                        if (penalty.user_id) {
+                            userIds.add(penalty.user_id);
+                        }
+                    });
+                }
+                
+                // Load users from Supabase Auth via PHP endpoint
+                var usersMap = {};
+                if (userIds.size > 0) {
+                    usersMap = await loadUsers(Array.from(userIds));
+                    console.log('Loaded users map with', Object.keys(usersMap).length, 'users');
+                } else {
+                    console.log('No user IDs found in bookings or penalties');
+                }
+                
+                // Create pods map for quick lookup
+                var podsMap = {};
+                podsData.forEach(function(pod) {
+                    podsMap[pod.id] = pod;
+                });
+                console.log('Created pods map with', Object.keys(podsMap).length, 'pods');
+                
+                // Convert bookings to records format
+                var bookingRecords = [];
+                if (bookings && bookings.length > 0) {
+                    bookingRecords = bookings.map(function(booking) {
+                        var username = usersMap[booking.user_id] || ('User ' + (booking.user_id ? booking.user_id.substring(0, 8) : 'Unknown'));
+                        var pod = podsMap[booking.pod_id];
+                        var podName = pod ? (pod.name || 'Pod ' + pod.id) : (booking.pod_id ? 'Pod ' + booking.pod_id.substring(0, 8) : 'Unknown Pod');
+                        
+                        // Format time - ensure we have valid time strings
+                        var checkInTime = booking.check_in_time || '';
+                        var checkOutTime = booking.check_out_time || '';
+                        if (checkInTime && typeof checkInTime === 'string') {
+                            // Extract HH:MM from time string (could be HH:MM:SS or just HH:MM)
+                            checkInTime = checkInTime.substring(0, 5);
+                        }
+                        if (checkOutTime && typeof checkOutTime === 'string') {
+                            checkOutTime = checkOutTime.substring(0, 5);
+                        }
+                        
+                        // Calculate duration
+                        var duration = calculateDuration(checkInTime, checkOutTime);
+                        var details = checkInTime && checkOutTime ? (checkInTime + ' - ' + checkOutTime + ' (' + duration + ')') : 'Time not specified';
+                        
+                        return {
+                            type: 'booking',
+                            username: username,
+                            date: booking.booking_date || '',
+                            details: details,
+                            pod: podName,
+                            status: 'completed', // All historical bookings are completed
+                            userId: booking.user_id,
+                            podId: booking.pod_id,
+                            bookingId: booking.id,
+                            numberOfPeople: booking.number_of_people || 0
+                        };
+                    });
+                    console.log('Converted', bookingRecords.length, 'bookings to records');
+                } else {
+                    console.log('No bookings found in database');
+                }
+                
+                // Convert penalties to records format
+                var penaltyRecords = [];
+                if (penalties && penalties.length > 0) {
+                    penaltyRecords = penalties.map(function(penalty) {
+                        var username = usersMap[penalty.user_id] || ('User ' + (penalty.user_id ? penalty.user_id.substring(0, 8) : 'Unknown'));
+                        var pod = podsMap[penalty.pod_id];
+                        var podName = pod ? (pod.name || 'Pod ' + pod.id) : (penalty.pod_id ? 'Pod ' + penalty.pod_id.substring(0, 8) : 'N/A');
+                        
+                        var violationType = penalty.violation_type || 'Unknown Violation';
+                        var penaltyAmount = penalty.penalty_amount ? '$' + parseFloat(penalty.penalty_amount).toFixed(2) : '';
+                        var details = violationType + (penaltyAmount ? ' - ' + penaltyAmount : '');
+                        
+                        return {
+                            type: 'penalty',
+                            username: username,
+                            date: penalty.violation_date || '',
+                            details: details,
+                            pod: podName,
+                            status: penalty.status || 'pending',
+                            userId: penalty.user_id,
+                            podId: penalty.pod_id,
+                            bookingId: penalty.booking_id,
+                            penaltyId: penalty.id,
+                            violationType: violationType,
+                            penaltyAmount: penalty.penalty_amount
+                        };
+                    });
+                    console.log('Converted', penaltyRecords.length, 'penalties to records');
+                } else {
+                    console.log('No penalties found in database');
+                }
+                
+                // Combine bookings and penalties
+                allRecords = bookingRecords.concat(penaltyRecords);
+                console.log('Total records:', allRecords.length, '(bookings:', bookingRecords.length, ', penalties:', penaltyRecords.length, ')');
+                
+                // Sort by date (newest first), then by type if same date
+                allRecords.sort(function(a, b) {
+                    if (a.date !== b.date) {
+                        return b.date.localeCompare(a.date);
+                    }
+                    // If same date, bookings come before penalties
+                    if (a.type !== b.type) {
+                        return a.type === 'booking' ? -1 : 1;
+                    }
+                    return 0;
+                });
+                
+                console.log('Records sorted and ready for display');
+                
+            } catch (error) {
+                console.error('Error in loadAllRecords:', error);
+                console.error('Error stack:', error.stack);
+                allRecords = [];
+            }
+        }
+        
+        // Calculate duration between two times
+        function calculateDuration(checkIn, checkOut) {
+            if (!checkIn || !checkOut) return 'N/A';
             
-            // August 2024 - 11 bookings, 4 penalties  
-            { type: 'booking', username: 'nathanyoung', date: '2024-08-03', details: '08:00 - 09:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'nathanyoung', date: '2024-08-03', details: 'No-show', pod: '1', status: 'paid' },
-            { type: 'booking', username: 'nicolescott', date: '2024-08-06', details: '11:00 - 12:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'jacksongreen', date: '2024-08-09', details: '14:00 - 15:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'jacksongreen', date: '2024-08-09', details: 'Late cancellation', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'hannahbaker', date: '2024-08-12', details: '10:00 - 11:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'isaacnelson', date: '2024-08-15', details: '15:00 - 16:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'isaacnelson', date: '2024-08-15', details: 'Overstayed booking', pod: '1', status: 'pending' },
-            { type: 'booking', username: 'gracecarter', date: '2024-08-18', details: '09:00 - 10:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'lucasmitchell', date: '2024-08-21', details: '12:30 - 14:00 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'avaroberts', date: '2024-08-24', details: '08:30 - 09:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'avaroberts', date: '2024-08-24', details: 'No-show', pod: '4', status: 'paid' },
-            { type: 'booking', username: 'henryedwards', date: '2024-08-27', details: '13:00 - 14:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'sophiacollins', date: '2024-08-30', details: '11:00 - 12:00 (1 hour)', pod: '2', status: 'completed' },
-            
-            // September 2024 - 8 bookings, 1 penalty
-            { type: 'booking', username: 'owenmorris', date: '2024-09-02', details: '14:00 - 15:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'emilyphillips', date: '2024-09-06', details: '09:30 - 10:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'noahbell', date: '2024-09-10', details: '12:00 - 13:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'oliviacook', date: '2024-09-14', details: '15:00 - 16:30 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'oliviacook', date: '2024-09-14', details: 'Late cancellation', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'liamward', date: '2024-09-18', details: '10:00 - 11:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'isabellahughes', date: '2024-09-22', details: '08:00 - 09:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'masoncooper', date: '2024-09-26', details: '13:30 - 14:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'charlotterivera', date: '2024-09-29', details: '11:30 - 12:30 (1 hour)', pod: '2', status: 'completed' },
-            
-            // October 2024 - 6 bookings, 2 penalties
-            { type: 'booking', username: 'elijahgray', date: '2024-10-04', details: '09:00 - 10:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'elijahgray', date: '2024-10-04', details: 'Overstayed booking', pod: '3', status: 'pending' },
-            { type: 'booking', username: 'ameliajames', date: '2024-10-09', details: '14:00 - 15:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'jamesdiaz', date: '2024-10-14', details: '10:30 - 11:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'miabutler', date: '2024-10-19', details: '13:00 - 14:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'miabutler', date: '2024-10-19', details: 'No-show', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'benjaminlong', date: '2024-10-24', details: '08:30 - 09:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'harperwood', date: '2024-10-29', details: '15:00 - 16:00 (1 hour)', pod: '4', status: 'completed' },
-            
-            // November 2024 - 7 bookings, 1 penalty
-            { type: 'booking', username: 'alexanderfoster', date: '2024-11-03', details: '11:00 - 12:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'evalynbarnes', date: '2024-11-07', details: '09:00 - 10:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'sebastianross', date: '2024-11-11', details: '14:00 - 15:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'sebastianross', date: '2024-11-11', details: 'Late cancellation', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'abigailpowell', date: '2024-11-15', details: '12:00 - 13:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'danieljenkins', date: '2024-11-19', details: '10:00 - 11:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'elizarussell', date: '2024-11-23', details: '15:30 - 16:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'matthewgriffin', date: '2024-11-27', details: '08:00 - 09:30 (1.5 hours)', pod: '3', status: 'completed' },
-            
-            // December 2024 - 5 bookings, 2 penalties
-            { type: 'booking', username: 'averydiaz', date: '2024-12-02', details: '13:00 - 14:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'averydiaz', date: '2024-12-02', details: 'Overstayed booking', pod: '4', status: 'pending' },
-            { type: 'booking', username: 'cartersanders', date: '2024-12-08', details: '10:30 - 11:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'scarletthayescompleted', date: '2024-12-14', details: '14:30 - 15:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'leoreynolds', date: '2024-12-20', details: '09:00 - 10:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'leoreynolds', date: '2024-12-20', details: 'No-show', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'ariapryce', date: '2024-12-26', details: '12:00 - 13:00 (1 hour)', pod: '4', status: 'completed' },
-            
-            // === 2025 DATA (Fluctuating amounts per month) ===
-            
-            // January 2025 - 9 bookings, 2 penalties
-            { type: 'booking', username: 'gabrielburns', date: '2025-01-04', details: '08:00 - 09:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'penelope howard', date: '2025-01-08', details: '11:00 - 12:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'penelopehoward', date: '2025-01-08', details: 'Late cancellation', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'julianhughes', date: '2025-01-12', details: '14:00 - 15:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'rileyflores', date: '2025-01-16', details: '10:00 - 11:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'wyattgomez', date: '2025-01-20', details: '09:00 - 10:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'wyattgomez', date: '2025-01-20', details: 'Overstayed booking', pod: '1', status: 'pending' },
-            { type: 'booking', username: 'laylamurray', date: '2025-01-24', details: '13:00 - 14:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'lincolnfreeman', date: '2025-01-27', details: '15:30 - 17:00 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'zoeywestcompleted', date: '2025-01-30', details: '08:30 - 09:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'jacksonwells', date: '2025-01-31', details: '12:00 - 13:00 (1 hour)', pod: '1', status: 'completed' },
-            
-            // February 2025 - 6 bookings, 1 penalty
-            { type: 'booking', username: 'aurorarodriguez', date: '2025-02-05', details: '11:30 - 13:00 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'graysonstewart', date: '2025-02-10', details: '14:00 - 15:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'graysonstewart', date: '2025-02-10', details: 'No-show', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'novabennett', date: '2025-02-15', details: '09:00 - 10:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'eastoncoleman', date: '2025-02-20', details: '16:00 - 17:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'lunaperez', date: '2025-02-24', details: '10:00 - 11:30 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'carsonreed', date: '2025-02-28', details: '13:30 - 14:30 (1 hour)', pod: '3', status: 'completed' },
-            
-            // March 2025 - 10 bookings, 3 penalties
-            { type: 'booking', username: 'violettbailey', date: '2025-03-03', details: '08:00 - 09:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'hudsoncox', date: '2025-03-06', details: '15:00 - 16:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'hudsoncox', date: '2025-03-06', details: 'Late cancellation', pod: '1', status: 'paid' },
-            { type: 'booking', username: 'hazelrichardson', date: '2025-03-09', details: '11:00 - 12:30 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'luckashoward', date: '2025-03-12', details: '09:30 - 10:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'luckashoward', date: '2025-03-12', details: 'Overstayed booking', pod: '3', status: 'pending' },
-            { type: 'booking', username: 'stellaward', date: '2025-03-15', details: '14:00 - 15:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'mavericsanders', date: '2025-03-18', details: '10:00 - 11:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'evelynprice', date: '2025-03-21', details: '12:00 - 13:30 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'evelynprice', date: '2025-03-21', details: 'No-show', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'coltonbennet', date: '2025-03-24', details: '08:30 - 09:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'audreymorgan', date: '2025-03-27', details: '15:00 - 16:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'hunterbell', date: '2025-03-30', details: '11:30 - 12:30 (1 hour)', pod: '1', status: 'completed' },
-            
-            // April 2025 - 8 bookings, 2 penalties
-            { type: 'booking', username: 'chloeward', date: '2025-04-03', details: '13:00 - 14:30 (1.5 hours)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'asherrivera', date: '2025-04-07', details: '09:00 - 10:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'asherrivera', date: '2025-04-07', details: 'Late cancellation', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'eleanor kelly', date: '2025-04-11', details: '14:30 - 15:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'jamieson cooper', date: '2025-04-15', details: '10:30 - 11:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'sophieraymond', date: '2025-04-19', details: '12:00 - 13:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'sophieraymond', date: '2025-04-19', details: 'Overstayed booking', pod: '2', status: 'pending' },
-            { type: 'booking', username: 'axelgraves', date: '2025-04-23', details: '08:00 - 09:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'brookejimenez', date: '2025-04-27', details: '15:00 - 16:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'ryderfoster', date: '2025-04-30', details: '11:00 - 12:00 (1 hour)', pod: '1', status: 'completed' },
-            
-            // May 2025 - 12 bookings, 2 penalties
-            { type: 'booking', username: 'madisongray', date: '2025-05-02', details: '09:30 - 10:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'romanbutler', date: '2025-05-05', details: '13:00 - 14:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'gracestone', date: '2025-05-08', details: '10:00 - 11:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'gracestone', date: '2025-05-08', details: 'No-show', pod: '4', status: 'paid' },
-            { type: 'booking', username: 'declanlong', date: '2025-05-11', details: '14:00 - 15:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'scarlettbyrd', date: '2025-05-14', details: '08:30 - 09:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'kaiwood', date: '2025-05-17', details: '12:00 - 13:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'bellacastro', date: '2025-05-20', details: '15:00 - 16:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'bellacastro', date: '2025-05-20', details: 'Late cancellation', pod: '4', status: 'paid' },
-            { type: 'booking', username: 'landonhicks', date: '2025-05-23', details: '10:30 - 11:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'lilyhawkins', date: '2025-05-26', details: '13:30 - 14:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'westonknight', date: '2025-05-29', details: '09:00 - 10:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'addisontate', date: '2025-05-31', details: '14:30 - 15:30 (1 hour)', pod: '4', status: 'completed' },
-            
-            // June 2025 - 7 bookings, 1 penalty
-            { type: 'booking', username: 'josiahgray', date: '2025-06-04', details: '11:00 - 12:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'natalieortiz', date: '2025-06-09', details: '08:00 - 09:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'theoandrade', date: '2025-06-14', details: '14:00 - 15:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'theoandrade', date: '2025-06-14', details: 'Overstayed booking', pod: '3', status: 'pending' },
-            { type: 'booking', username: 'hannahvargas', date: '2025-06-19', details: '10:00 - 11:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'oliverjuarez', date: '2025-06-23', details: '12:30 - 13:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'emmavasquez', date: '2025-06-26', details: '15:30 - 16:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'kingsley barrett', date: '2025-06-29', details: '09:30 - 10:30 (1 hour)', pod: '3', status: 'completed' },
-            
-            // July 2025 - 11 bookings, 3 penalties
-            { type: 'booking', username: 'valentinablake', date: '2025-07-02', details: '13:00 - 14:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'valentinablake', date: '2025-07-02', details: 'No-show', pod: '4', status: 'paid' },
-            { type: 'booking', username: 'kingstonmendez', date: '2025-07-05', details: '10:00 - 11:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'alicecruz', date: '2025-07-08', details: '14:30 - 15:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'leongreene', date: '2025-07-11', details: '08:30 - 09:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'leongreene', date: '2025-07-11', details: 'Late cancellation', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'claireburton', date: '2025-07-14', details: '12:00 - 13:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'adrianmaldonado', date: '2025-07-17', details: '15:00 - 16:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'stellagriffin', date: '2025-07-20', details: '09:00 - 10:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'rowanreyes', date: '2025-07-23', details: '13:30 - 14:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'rowanreyes', date: '2025-07-23', details: 'Overstayed booking', pod: '3', status: 'pending' },
-            { type: 'booking', username: 'savannachambers', date: '2025-07-26', details: '11:00 - 12:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'everettbryant', date: '2025-07-29', details: '14:00 - 15:30 (1.5 hours)', pod: '1', status: 'completed' },
-            
-            // August 2025 - 9 bookings, 2 penalties
-            { type: 'booking', username: 'ariamcdonald', date: '2025-08-01', details: '10:30 - 11:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'paxtoncrawford', date: '2025-08-05', details: '13:00 - 14:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'paxtoncrawford', date: '2025-08-05', details: 'No-show', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'skylarcarr', date: '2025-08-09', details: '08:00 - 09:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'dominiclewis', date: '2025-08-13', details: '15:00 - 16:00 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'alayahparrish', date: '2025-08-17', details: '11:30 - 12:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'jonathanporter', date: '2025-08-21', details: '14:00 - 15:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'jonathanporter', date: '2025-08-21', details: 'Late cancellation', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'brooklynhale', date: '2025-08-25', details: '09:00 - 10:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'charleshess', date: '2025-08-29', details: '12:00 - 13:30 (1.5 hours)', pod: '1', status: 'completed' },
-            
-            // September 2025 - 10 bookings, 3 penalties
-            { type: 'booking', username: 'kennedydawson', date: '2025-09-02', details: '10:00 - 11:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'kennedydawson', date: '2025-09-02', details: 'Overstayed booking', pod: '2', status: 'pending' },
-            { type: 'booking', username: 'christianpage', date: '2025-09-06', details: '14:30 - 15:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'auroravelasquez', date: '2025-09-10', details: '08:30 - 09:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'brycemills', date: '2025-09-14', details: '13:00 - 14:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'brycemills', date: '2025-09-14', details: 'No-show', pod: '1', status: 'paid' },
-            { type: 'booking', username: 'camiladunn', date: '2025-09-18', details: '11:00 - 12:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'gavinwebb', date: '2025-09-22', details: '15:00 - 16:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'gavinwebb', date: '2025-09-22', details: 'Late cancellation', pod: '3', status: 'paid' },
-            { type: 'booking', username: 'genesislane', date: '2025-09-26', details: '09:30 - 10:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'tristanbowman', date: '2025-09-29', details: '12:30 - 13:30 (1 hour)', pod: '1', status: 'completed' },
-            
-            // October 2025 - 8 bookings, 1 penalty
-            { type: 'booking', username: 'serenityfields', date: '2025-10-03', details: '14:00 - 15:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'collinmcdaniel', date: '2025-10-07', details: '10:00 - 11:30 (1.5 hours)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'josephinestout', date: '2025-10-11', details: '08:00 - 09:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'penalty', username: 'josephinestout', date: '2025-10-11', details: 'Overstayed booking', pod: '4', status: 'pending' },
-            { type: 'booking', username: 'brooksmeyers', date: '2025-10-15', details: '13:00 - 14:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'delaneyhorton', date: '2025-10-19', details: '11:30 - 12:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'damianvaughn', date: '2025-10-23', details: '15:00 - 16:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'finleyryan', date: '2025-10-27', details: '09:00 - 10:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'presleygiles', date: '2025-10-31', details: '12:00 - 13:00 (1 hour)', pod: '1', status: 'completed' },
-            
-            // November 2025 - 6 bookings, 2 penalties
-            { type: 'booking', username: 'elliotwoods', date: '2025-11-04', details: '14:30 - 15:30 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'penalty', username: 'elliotwoods', date: '2025-11-04', details: 'No-show', pod: '2', status: 'paid' },
-            { type: 'booking', username: 'mariahfuentes', date: '2025-11-09', details: '10:30 - 11:30 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'booking', username: 'beckettbradford', date: '2025-11-14', details: '08:30 - 09:30 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'genevievecolon', date: '2025-11-19', details: '13:00 - 14:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'penalty', username: 'genevievecolon', date: '2025-11-19', details: 'Late cancellation', pod: '1', status: 'paid' },
-            { type: 'booking', username: 'kashvega', date: '2025-11-24', details: '11:00 - 12:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'madisonochoa', date: '2025-11-29', details: '15:00 - 16:30 (1.5 hours)', pod: '3', status: 'completed' },
-            
-            // December 2025 - 7 bookings, 1 penalty
-            { type: 'booking', username: 'silasgrant', date: '2025-12-03', details: '09:00 - 10:00 (1 hour)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'lucyhaas', date: '2025-12-08', details: '12:00 - 13:30 (1.5 hours)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'emmettdecker', date: '2025-12-13', details: '14:00 - 15:00 (1 hour)', pod: '2', status: 'completed' },
-            { type: 'booking', username: 'adelyngilbert', date: '2025-12-17', details: '10:00 - 11:00 (1 hour)', pod: '3', status: 'completed' },
-            { type: 'penalty', username: 'adelyngilbert', date: '2025-12-17', details: 'Overstayed booking', pod: '3', status: 'pending' },
-            { type: 'booking', username: 'zanetaylor', date: '2025-12-21', details: '08:00 - 09:30 (1.5 hours)', pod: '4', status: 'completed' },
-            { type: 'booking', username: 'ivyleach', date: '2025-12-26', details: '13:30 - 14:30 (1 hour)', pod: '1', status: 'completed' },
-            { type: 'booking', username: 'wadeterry', date: '2025-12-30', details: '11:30 - 12:30 (1 hour)', pod: '2', status: 'completed' }
-        ];
+            try {
+                var inParts = checkIn.split(':');
+                var outParts = checkOut.split(':');
+                var inMinutes = parseInt(inParts[0]) * 60 + parseInt(inParts[1]);
+                var outMinutes = parseInt(outParts[0]) * 60 + parseInt(outParts[1]);
+                var diffMinutes = outMinutes - inMinutes;
+                
+                if (diffMinutes < 0) return 'N/A';
+                
+                var hours = Math.floor(diffMinutes / 60);
+                var minutes = diffMinutes % 60;
+                
+                if (hours === 0) {
+                    return minutes + ' min';
+                } else if (minutes === 0) {
+                    return hours + (hours === 1 ? ' hour' : ' hours');
+                } else {
+                    return hours + (hours === 1 ? ' hour' : ' hours') + ' ' + minutes + ' min';
+                }
+            } catch (e) {
+                return 'N/A';
+            }
+        }
         
         // Function to calculate analytics data from actual records
         function calculateAnalyticsFromRecords() {
+            console.log('Calculating analytics from', allRecords.length, 'records');
+            
+            // Initialize daily analytics by day of week (0=Sunday, 1=Monday, etc.)
+            var dailyCounts = {
+                0: { period: 'Sun', bookings: 0, penalties: 0 }, // Sunday
+                1: { period: 'Mon', bookings: 0, penalties: 0 }, // Monday
+                2: { period: 'Tue', bookings: 0, penalties: 0 }, // Tuesday
+                3: { period: 'Wed', bookings: 0, penalties: 0 }, // Wednesday
+                4: { period: 'Thu', bookings: 0, penalties: 0 }, // Thursday
+                5: { period: 'Fri', bookings: 0, penalties: 0 }, // Friday
+                6: { period: 'Sat', bookings: 0, penalties: 0 }  // Saturday
+            };
+            
             var analytics = {
                 daily: [
-                    { period: 'Mon', bookings: 0, penalties: 0 },
-                    { period: 'Tue', bookings: 0, penalties: 0 },
-                    { period: 'Wed', bookings: 0, penalties: 0 },
-                    { period: 'Thu', bookings: 0, penalties: 0 },
-                    { period: 'Fri', bookings: 0, penalties: 0 },
-                    { period: 'Sat', bookings: 0, penalties: 0 },
-                    { period: 'Sun', bookings: 0, penalties: 0 }
+                    dailyCounts[1], // Monday first (most common start of week)
+                    dailyCounts[2], // Tuesday
+                    dailyCounts[3], // Wednesday
+                    dailyCounts[4], // Thursday
+                    dailyCounts[5], // Friday
+                    dailyCounts[6], // Saturday
+                    dailyCounts[0]  // Sunday last
                 ],
                 monthly: {},
                 quarterly: []
             };
             
-            // Initialize monthly data for available years
-            var years = [2024, 2025, 2026];
+            // Find all unique years from records
+            var yearsSet = new Set();
+            allRecords.forEach(function(record) {
+                if (!record.date) return;
+                try {
+                    // Parse date - handle both YYYY-MM-DD format and Date objects
+                    var date = new Date(record.date + 'T00:00:00'); // Add time to avoid timezone issues
+                    if (!isNaN(date.getTime())) {
+                        yearsSet.add(date.getFullYear());
+                    }
+                } catch (e) {
+                    // Skip invalid dates
+                }
+            });
+            
+            // Add current year and next year if not already present (for future data)
+            var currentYear = new Date().getFullYear();
+            yearsSet.add(currentYear);
+            yearsSet.add(currentYear + 1);
+            
+            // Initialize monthly data for all found years
+            var years = Array.from(yearsSet).sort();
             years.forEach(function(year) {
                 analytics.monthly[year] = {};
                 for (var i = 0; i < 12; i++) {
@@ -883,121 +988,127 @@
                 }
             });
             
-            // Count records by month and year
+            console.log('Initialized analytics for years:', years);
+            
+            // Count records by day of week, month, and year
+            var bookingCount = 0;
+            var penaltyCount = 0;
+            
             allRecords.forEach(function(record) {
-                var date = new Date(record.date);
-                var year = date.getFullYear();
-                var month = date.getMonth();
+                if (!record.date) {
+                    console.warn('Record missing date:', record);
+                    return;
+                }
                 
-                if (analytics.monthly[year]) {
-                    if (record.type === 'booking') {
-                        analytics.monthly[year][month].bookings++;
-                    } else if (record.type === 'penalty') {
-                        analytics.monthly[year][month].penalties++;
+                try {
+                    // Parse date - add time to avoid timezone conversion issues
+                    var date = new Date(record.date + 'T00:00:00');
+                    if (isNaN(date.getTime())) {
+                        console.warn('Invalid date:', record.date);
+                        return;
                     }
+                    
+                    var year = date.getFullYear();
+                    var month = date.getMonth(); // 0-11
+                    var dayOfWeek = date.getDay(); // 0 (Sunday) to 6 (Saturday)
+                    
+                    // Ensure year exists in monthly data (should always be true, but check anyway)
+                    if (!analytics.monthly[year]) {
+                        analytics.monthly[year] = {};
+                        for (var i = 0; i < 12; i++) {
+                            analytics.monthly[year][i] = { bookings: 0, penalties: 0 };
+                        }
+                    }
+                    
+                    // Update analytics based on record type
+                    if (record.type === 'booking') {
+                        // Update daily analytics (by day of week)
+                        dailyCounts[dayOfWeek].bookings++;
+                        // Update monthly analytics
+                        analytics.monthly[year][month].bookings++;
+                        // Count total bookings
+                        bookingCount++;
+                    } else if (record.type === 'penalty') {
+                        // Update daily analytics (by day of week)
+                        dailyCounts[dayOfWeek].penalties++;
+                        // Update monthly analytics
+                        analytics.monthly[year][month].penalties++;
+                        // Count total penalties
+                        penaltyCount++;
+                    }
+                } catch (e) {
+                    console.error('Error processing record date:', record.date, e);
                 }
             });
+            
+            // Update daily array with populated counts
+            analytics.daily = [
+                dailyCounts[1], // Monday
+                dailyCounts[2], // Tuesday
+                dailyCounts[3], // Wednesday
+                dailyCounts[4], // Thursday
+                dailyCounts[5], // Friday
+                dailyCounts[6], // Saturday
+                dailyCounts[0]  // Sunday
+            ];
+            
+            console.log('Processed', bookingCount, 'bookings and', penaltyCount, 'penalties for analytics');
+            console.log('Daily analytics:', analytics.daily);
             
             // Calculate quarterly data
             var quarterlyData = {};
             allRecords.forEach(function(record) {
-                var date = new Date(record.date);
-                var year = date.getFullYear();
-                var month = date.getMonth();
-                var quarter = Math.floor(month / 3) + 1;
-                var key = 'Q' + quarter + ' ' + year;
+                if (!record.date) return;
                 
-                if (!quarterlyData[key]) {
-                    quarterlyData[key] = { period: key, bookings: 0, penalties: 0 };
-                }
-                
-                if (record.type === 'booking') {
-                    quarterlyData[key].bookings++;
-                } else if (record.type === 'penalty') {
-                    quarterlyData[key].penalties++;
+                try {
+                    var date = new Date(record.date + 'T00:00:00');
+                    if (isNaN(date.getTime())) return;
+                    
+                    var year = date.getFullYear();
+                    var month = date.getMonth();
+                    var quarter = Math.floor(month / 3) + 1;
+                    var key = 'Q' + quarter + ' ' + year;
+                    
+                    if (!quarterlyData[key]) {
+                        quarterlyData[key] = { period: key, bookings: 0, penalties: 0 };
+                    }
+                    
+                    if (record.type === 'booking') {
+                        quarterlyData[key].bookings++;
+                    } else if (record.type === 'penalty') {
+                        quarterlyData[key].penalties++;
+                    }
+                } catch (e) {
+                    console.error('Error processing record for quarterly:', record.date, e);
                 }
             });
             
-            // Convert quarterly object to array and sort
+            // Convert quarterly object to array and sort by year and quarter
             analytics.quarterly = Object.values(quarterlyData).sort(function(a, b) {
-                return a.period.localeCompare(b.period);
+                // Extract year and quarter from period string (e.g., "Q1 2024")
+                var aMatch = a.period.match(/Q(\d+)\s+(\d+)/);
+                var bMatch = b.period.match(/Q(\d+)\s+(\d+)/);
+                
+                if (!aMatch || !bMatch) {
+                    return a.period.localeCompare(b.period);
+                }
+                
+                var aYear = parseInt(aMatch[2]);
+                var bYear = parseInt(bMatch[2]);
+                var aQuarter = parseInt(aMatch[1]);
+                var bQuarter = parseInt(bMatch[1]);
+                
+                // Sort by year first, then by quarter
+                if (aYear !== bYear) {
+                    return aYear - bYear;
+                }
+                return aQuarter - bQuarter;
             });
+            
+            console.log('Analytics calculation complete. Monthly data for years:', Object.keys(analytics.monthly));
+            console.log('Quarterly data:', analytics.quarterly.length, 'quarters');
             
             return analytics;
-        }
-        
-        // Calculate analytics data from actual records
-        var masterAnalyticsData = calculateAnalyticsFromRecords();
-        
-        // Current analytics data for display
-        var analyticsData = masterAnalyticsData.daily;
-        
-        // Mock booking data for today - 30 bookings across all time slots
-        // No overlapping bookings per pod - each pod can only have one booking at a time
-        var bookingsData = [
-            // Pod 1 bookings
-            { username: 'johnsmith', room: 1, checkIn: '08:30', checkOut: '09:30', duration: '1 hour' },
-            { username: 'jameswalker', room: 1, checkIn: '10:00', checkOut: '11:00', duration: '1 hour' },
-            { username: 'williammoore', room: 1, checkIn: '11:15', checkOut: '12:15', duration: '1 hour' },
-            { username: 'markwright', room: 1, checkIn: '13:00', checkOut: '14:00', duration: '1 hour' },
-            { username: 'nancyking', room: 1, checkIn: '14:30', checkOut: '15:30', duration: '1 hour' },
-            { username: 'helenrobinson', room: 1, checkIn: '16:00', checkOut: '17:00', duration: '1 hour' },
-            { username: 'jessicamartinez', room: 1, checkIn: '17:30', checkOut: '19:30', duration: '2 hours' },
-            
-            // Pod 2 bookings
-            { username: 'danielharris', room: 2, checkIn: '08:45', checkOut: '09:45', duration: '1 hour' },
-            { username: 'emmajohnson', room: 2, checkIn: '10:15', checkOut: '11:15', duration: '1 hour' },
-            { username: 'jenniferwilson', room: 2, checkIn: '11:45', checkOut: '12:45', duration: '1 hour' },
-            { username: 'michaelbrown', room: 2, checkIn: '13:15', checkOut: '14:15', duration: '1 hour' },
-            { username: 'thomasanderson', room: 2, checkIn: '14:45', checkOut: '15:45', duration: '1 hour' },
-            { username: 'jasonclark', room: 2, checkIn: '16:15', checkOut: '17:15', duration: '1 hour' },
-            { username: 'lindagreen', room: 2, checkIn: '17:45', checkOut: '19:15', duration: '1.5 hours' },
-            { username: 'stevenhill', room: 2, checkIn: '19:30', checkOut: '20:00', duration: '30 min' },
-            
-            // Pod 3 bookings
-            { username: 'kevinmartin', room: 3, checkIn: '09:00', checkOut: '10:00', duration: '1 hour' },
-            { username: 'mariagarcia', room: 3, checkIn: '10:30', checkOut: '11:30', duration: '1 hour' },
-            { username: 'davidwilson', room: 3, checkIn: '12:00', checkOut: '13:00', duration: '1 hour' },
-            { username: 'barbaralee', room: 3, checkIn: '13:30', checkOut: '14:30', duration: '1 hour' },
-            { username: 'christopherlee', room: 3, checkIn: '15:00', checkOut: '16:00', duration: '1 hour' },
-            { username: 'lisaanderson', room: 3, checkIn: '17:00', checkOut: '20:00', duration: '3 hours' },
-            
-            // Pod 4 bookings
-            { username: 'sarahdavis', room: 4, checkIn: '09:15', checkOut: '10:15', duration: '1 hour' },
-            { username: 'robertbrown', room: 4, checkIn: '10:45', checkOut: '11:45', duration: '1 hour' },
-            { username: 'susantaylor', room: 4, checkIn: '12:15', checkOut: '13:15', duration: '1 hour' },
-            { username: 'amandawhite', room: 4, checkIn: '14:00', checkOut: '15:00', duration: '1 hour' },
-            { username: 'dorothymartin', room: 4, checkIn: '15:30', checkOut: '16:30', duration: '1 hour' },
-            { username: 'patriciamoore', room: 4, checkIn: '17:00', checkOut: '18:30', duration: '1.5 hours' },
-            { username: 'brianlopez', room: 4, checkIn: '19:00', checkOut: '20:00', duration: '1 hour' }
-        ];
-        
-        function convertTo12Hour(time24) {
-            // time24 format: "HH:MM" (e.g., "08:30", "13:00", "17:45")
-            var parts = time24.split(':');
-            var hours = parseInt(parts[0]);
-            var minutes = parts[1];
-            
-            var period = hours >= 12 ? 'PM' : 'AM';
-            var hours12 = hours % 12 || 12; // Convert 0 to 12 for midnight, 13-23 to 1-11
-            
-            return hours12 + ':' + minutes + ' ' + period;
-        }
-        
-        function getBookingStatus(checkIn, checkOut) {
-            var now = new Date();
-            var today = now.toISOString().split('T')[0];
-            
-            var checkInDateTime = new Date(today + ' ' + checkIn);
-            var checkOutDateTime = new Date(today + ' ' + checkOut);
-            
-            if (now < checkInDateTime) {
-                return 'upcoming';
-            } else if (now >= checkInDateTime && now <= checkOutDateTime) {
-                return 'ongoing';
-            } else {
-                return 'completed';
-            }
         }
         
         function initializeChart(data, hasData, typeFilter) {
@@ -1048,144 +1159,87 @@
                 $('#legend-penalties').show();
             }
             
+            // Ensure data is properly formatted
+            var chartDataToUse = data || analyticsData;
+            if (!chartDataToUse || chartDataToUse.length === 0) {
+                console.warn('No chart data to display');
+                $('#analytics-chart').hide();
+                $('#chart-legend').hide();
+                $('#no-chart-data').show();
+                return;
+            }
+            
+            // Log the data being used for debugging
+            console.log('Chart data:', chartDataToUse);
+            console.log('Chart data length:', chartDataToUse.length);
+            
+            // Calculate chart options based on data length
+            var xLabelAngle = 0;
+            var barSizeRatio = 0.65;
+            var gridTextSize = 11;
+            
+            // Adjust chart options based on number of periods
+            // For monthly view (12 months), use smaller bars and rotated labels to fit all labels
+            if (chartDataToUse.length >= 12) {
+                xLabelAngle = 45;  // Rotate labels to prevent overlap
+                barSizeRatio = 0.5;  // Smaller bars to fit more periods
+                gridTextSize = 10;  // Slightly smaller text
+            } else if (chartDataToUse.length > 8) {
+                xLabelAngle = 45;  // Rotate labels if many periods
+                barSizeRatio = 0.55;  // Smaller bars
+            } else if (chartDataToUse.length <= 4) {
+                barSizeRatio = 0.75;  // Larger bars for fewer periods
+            }
+            
+            // Destroy existing chart if it exists to prevent conflicts
+            if (morrisChart) {
+                try {
+                    morrisChart.destroy();
+                } catch (e) {
+                    // If destroy fails, just clear the element
+                    $('#analytics-chart').empty();
+                }
+                morrisChart = null;
+            }
+            
             morrisChart = Morris.Bar({
                 element: 'analytics-chart',
-                data: data || analyticsData,
+                data: chartDataToUse,
                 xkey: 'period',
                 ykeys: ykeys,
                 labels: labels,
                 barColors: barColors,
-                hideHover: 'auto',
+                hideHover: false,  // Show hover tooltip
                 resize: true,
-                gridTextSize: 12,
-                barSizeRatio: 0.5,
-                xLabelAngle: 0,
+                gridTextSize: gridTextSize,
+                barSizeRatio: barSizeRatio,  // Dynamic bar size based on data points
+                xLabelAngle: xLabelAngle,  // Rotate if needed for better fit (0-90 degrees)
                 parseTime: false,  // Treat x-axis as categories, not dates
-                xLabels: null,  // Show all x-axis labels
                 axes: true,
-                grid: true
+                grid: true,
+                stacked: false,
+                xLabelMargin: 8  // Margin between x-axis labels
             });
             
-            // Add data labels on top of bars after chart is rendered
-            // Use longer timeout and store data for label function
-            window.currentChartData = data || analyticsData;
+            // Store data for label functions
+            window.currentChartData = chartDataToUse;
             window.currentTypeFilter = typeFilter;
+            window.currentYKeys = ykeys;
             
+            // Wait for chart to render, then add data labels on top of bars
+            // Use multiple timeouts to ensure chart is fully rendered
             setTimeout(function() {
-                addMissingMonthLabels();
-            }, 100);
-            
-            setTimeout(function() {
+                // Clear any existing data labels first
+                $('#analytics-chart svg .data-label').remove();
                 addDataLabels();
-            }, 150);
-        }
-        
-        function addMissingMonthLabels() {
-            var chartData = window.currentChartData;
-            if (!chartData || chartData.length === 0) {
-                return;
-            }
-            
-            var svg = $('#analytics-chart svg');
-            if (!svg.length) {
-                return;
-            }
-            
-            var svgElement = svg[0];
-            var chartHeight = parseFloat(svg.attr('height'));
-            var chartWidth = parseFloat(svg.attr('width'));
-            
-            // REMOVE ALL existing x-axis labels from Morris.js
-            svg.find('text').each(function() {
-                var yPos = parseFloat($(this).attr('y'));
-                if (yPos > chartHeight - 50) {
-                    $(this).remove();
-                }
-            });
-            
-            // Find all bars and group by X position
-            var barGroups = [];
-            var allBars = [];
-            
-            svg.find('rect').each(function() {
-                var fill = $(this).attr('fill');
-                var height = parseFloat($(this).attr('height'));
-                
-                if (height > 5) {
-                    var isGreen = fill === '#5cb85c' || fill === 'rgb(92, 184, 92)' || fill.toLowerCase() === '#5cb85c';
-                    var isRed = fill === '#d9534f' || fill === 'rgb(217, 83, 79)' || fill.toLowerCase() === '#d9534f';
-                    
-                    if (isGreen || isRed) {
-                        var x = parseFloat($(this).attr('x'));
-                        var width = parseFloat($(this).attr('width'));
-                        allBars.push({
-                            x: x,
-                            width: width,
-                            centerX: x + (width / 2)
-                        });
-                    }
-                }
-            });
-            
-            // Sort bars by X position
-            allBars.sort(function(a, b) { return a.centerX - b.centerX; });
-            
-            // Calculate dynamic tolerance based on chart width and number of data points
-            // For quarterly (4 points), bars are more spread out than monthly (12 points)
-            var avgBarSpacing = chartWidth / (chartData.length * 2);
-            var groupTolerance = avgBarSpacing * 0.8; // 80% of average spacing
-            
-            // Group bars that are close together (same period)
-            var currentGroup = [];
-            for (var i = 0; i < allBars.length; i++) {
-                if (currentGroup.length === 0) {
-                    currentGroup.push(allBars[i]);
-                } else {
-                    var lastBar = currentGroup[currentGroup.length - 1];
-                    if (Math.abs(allBars[i].centerX - lastBar.centerX) < groupTolerance) {
-                        currentGroup.push(allBars[i]);
-                    } else {
-                        barGroups.push(currentGroup);
-                        currentGroup = [allBars[i]];
-                    }
-                }
-            }
-            if (currentGroup.length > 0) {
-                barGroups.push(currentGroup);
-            }
-            
-            // Fixed Y position for ALL labels
-            var fixedYPos = chartHeight - 10;
-            
-            // Create labels at the center of each bar group
-            for (var i = 0; i < Math.min(barGroups.length, chartData.length); i++) {
-                var group = barGroups[i];
-                var period = chartData[i].period;
-                
-                // Calculate the center of all bars in this group
-                var sumX = 0;
-                for (var j = 0; j < group.length; j++) {
-                    sumX += group[j].centerX;
-                }
-                var groupCenterX = sumX / group.length;
-                
-                var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', groupCenterX);
-                text.setAttribute('y', fixedYPos);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-family', 'sans-serif');
-                text.setAttribute('font-size', '12px');
-                text.setAttribute('fill', '#888');
-                text.textContent = period;
-                
-                svgElement.appendChild(text);
-            }
+            }, 600);  // Increased timeout to ensure chart is fully rendered
         }
         
         function addDataLabels() {
             // Get the SVG element
             var svg = $('#analytics-chart svg');
             if (!svg.length) {
+                console.warn('Chart SVG not found');
                 return;
             }
             
@@ -1194,123 +1248,331 @@
             var typeFilter = window.currentTypeFilter;
             
             if (!chartData || chartData.length === 0) {
+                console.warn('No chart data for labels');
                 return;
             }
             
             // Get chart dimensions
-            var chartHeight = parseFloat(svg.attr('height'));
-            var chartBottom = chartHeight - 30;
+            var chartHeight = parseFloat(svg.attr('height')) || 400;
+            var chartWidth = parseFloat(svg.attr('width')) || 800;
             
-            // Get X positions from the month labels (they're positioned at bar centers!)
-            var monthLabelPositions = [];
-            svg.find('text').each(function() {
-                var yPos = parseFloat($(this).attr('y'));
-                var xPos = parseFloat($(this).attr('x'));
-                var text = $(this).text();
+            // Collect all bars (green and red separately)
+            var greenBars = [];
+            var redBars = [];
+            
+            svg.find('rect').each(function() {
+                var fill = $(this).attr('fill');
+                var height = parseFloat($(this).attr('height')) || 0;
+                var y = parseFloat($(this).attr('y')) || 0;
+                var x = parseFloat($(this).attr('x')) || 0;
+                var width = parseFloat($(this).attr('width')) || 0;
                 
-                if (yPos > chartHeight - 50) {
+                // Only process bars that are actual data bars (colored bars with significant height)
+                if (height > 1 && y < chartHeight - 70 && width > 0) {
+                    var isGreen = fill === '#5cb85c' || fill === 'rgb(92, 184, 92)' || fill.toLowerCase() === '#5cb85c';
+                    var isRed = fill === '#d9534f' || fill === 'rgb(217, 83, 79)' || fill.toLowerCase() === '#d9534f';
+                    
+                    if (isGreen) {
+                        greenBars.push({
+                            centerX: x + (width / 2),
+                            y: y,
+                            x: x,
+                            width: width
+                        });
+                    } else if (isRed) {
+                        redBars.push({
+                            centerX: x + (width / 2),
+                            y: y,
+                            x: x,
+                            width: width
+                        });
+                    }
+                }
+            });
+            
+            // Get x-axis label positions from Morris.js (these are the period labels)
+            // Morris.js creates labels for each data point, positioned at the center of each period group
+            var labelPositions = {};
+            var allLabels = [];
+            
+            svg.find('text').each(function() {
+                var text = $(this).text().trim();
+                var yPos = parseFloat($(this).attr('y')) || 0;
+                var xPos = parseFloat($(this).attr('x')) || 0;
+                
+                // X-axis labels are near the bottom of the chart
+                // Check if this text matches a period from our data
+                if (yPos > chartHeight - 80) {
+                    // Try to match this label to a period in our data
                     for (var i = 0; i < chartData.length; i++) {
-                        if (chartData[i].period === text) {
-                            monthLabelPositions[i] = xPos;
+                        if (chartData[i].period === text || chartData[i].period.trim() === text) {
+                            labelPositions[i] = {
+                                x: xPos,
+                                period: chartData[i].period,
+                                index: i
+                            };
+                            allLabels.push({
+                                x: xPos,
+                                period: chartData[i].period,
+                                index: i
+                            });
                             break;
                         }
                     }
                 }
             });
             
-            // Find ALL bars with their Y positions
-            var greenBars = [];
-            var redBars = [];
+            // Sort labels by X position to maintain order
+            allLabels.sort(function(a, b) { return a.x - b.x; });
             
-            svg.find('rect').each(function() {
-                var fill = $(this).attr('fill');
-                var height = parseFloat($(this).attr('height'));
-                
-                if (height > 5) {
-                    var x = parseFloat($(this).attr('x'));
-                    var y = parseFloat($(this).attr('y'));
-                    var width = parseFloat($(this).attr('width'));
-                    var centerX = x + (width / 2);
-                    
-                    if (fill === '#5cb85c' || fill === 'rgb(92, 184, 92)' || fill.toLowerCase() === '#5cb85c') {
-                        greenBars.push({ centerX: centerX, y: y });
-                    } else if (fill === '#d9534f' || fill === 'rgb(217, 83, 79)' || fill.toLowerCase() === '#d9534f') {
-                        redBars.push({ centerX: centerX, y: y });
-                    }
-                }
+            // Also create a map of period to label position for quick lookup
+            var periodToLabelMap = {};
+            allLabels.forEach(function(label) {
+                periodToLabelMap[label.period] = label.x;
             });
             
+            console.log('Found', allLabels.length, 'x-axis labels out of', chartData.length, 'data points');
+            console.log('Label positions:', labelPositions);
+            console.log('Green bars found:', greenBars.length);
+            console.log('Red bars found:', redBars.length);
+            console.log('Bar groups:', barGroups.length);
+            
+            // Sort bars by X position (left to right) - this matches data order
             greenBars.sort(function(a, b) { return a.centerX - b.centerX; });
             redBars.sort(function(a, b) { return a.centerX - b.centerX; });
             
-            // Add labels at month label positions
-            var greenIndex = 0;
-            var redIndex = 0;
+            // Morris.js creates bars in order: for each data point, it creates bars for each ykey
+            // When typeFilter is 'both': creates bookings bar, then penalties bar (side by side)
+            // When typeFilter is 'bookings': creates bookings bar only
+            // When typeFilter is 'penalties': creates penalties bar only
+            // Bars are created sequentially, so we can match them by order
+            
+            // Group bars by period (bars close together belong to same period)
+            // Calculate period spacing
+            var chartPadding = 60;
+            var chartAreaWidth = chartWidth - (chartPadding * 2);
+            var periodSpacing = chartAreaWidth / Math.max(chartData.length, 1);
+            var groupingTolerance = periodSpacing * 0.3; // Bars within 30% of period spacing are grouped
+            
+            // Group all bars (green and red) by X position
+            var allBars = [];
+            greenBars.forEach(function(bar) {
+                bar.barType = 'bookings';
+                allBars.push(bar);
+            });
+            redBars.forEach(function(bar) {
+                bar.barType = 'penalties';
+                allBars.push(bar);
+            });
+            allBars.sort(function(a, b) { return a.centerX - b.centerX; });
+            
+            // Group bars that are close together (same period)
+            var barGroups = [];
+            if (allBars.length > 0) {
+                var currentGroup = [allBars[0]];
+                for (var i = 1; i < allBars.length; i++) {
+                    var lastBar = currentGroup[currentGroup.length - 1];
+                    var distance = Math.abs(allBars[i].centerX - lastBar.centerX);
+                    if (distance < groupingTolerance) {
+                        currentGroup.push(allBars[i]);
+                    } else {
+                        barGroups.push(currentGroup);
+                        currentGroup = [allBars[i]];
+                    }
+                }
+                if (currentGroup.length > 0) {
+                    barGroups.push(currentGroup);
+                }
+            }
+            
+            // Match bars to periods using a hybrid approach:
+            // 1. Use x-axis label positions as anchors for expected positions
+            // 2. Match bars sequentially but verify with label positions
+            // 3. For zero values, use label position directly
+            
+            var greenBarIndex = 0;
+            var redBarIndex = 0;
             
             for (var i = 0; i < chartData.length; i++) {
                 var dataPoint = chartData[i];
-                var labelX = monthLabelPositions[i];
+                var labelPos = labelPositions[i];
                 
-                if (!labelX) continue;
-                
-                // Add booking label
-                if (typeFilter === 'both' || typeFilter === 'bookings') {
-                    var bookingValue = dataPoint.bookings || 0;
-                    var greenBar = (bookingValue > 0 && greenIndex < greenBars.length) ? greenBars[greenIndex++] : null;
-                    
-                    var textX, textY;
-                    if (greenBar) {
-                        // Use actual bar center X for non-zero values
-                        textX = greenBar.centerX;
-                        textY = greenBar.y - 5;
+                // Determine expected X position for this period (use label position as anchor)
+                var expectedX = null;
+                if (labelPos) {
+                    // Use actual label position - this is the most accurate
+                    expectedX = labelPos.x;
+                } else if (allLabels.length > 0) {
+                    // Estimate based on other labels - interpolate
+                    if (i === 0) {
+                        expectedX = allLabels[0].x;
+                    } else if (i === chartData.length - 1) {
+                        expectedX = allLabels[allLabels.length - 1].x;
                     } else {
-                        // Zero value - position relative to label
-                        textX = labelX - (typeFilter === 'both' ? 20 : 0);
-                        textY = chartBottom - 5;
+                        // Interpolate between existing labels
+                        var ratio = i / (chartData.length - 1);
+                        expectedX = allLabels[0].x + (ratio * (allLabels[allLabels.length - 1].x - allLabels[0].x));
+                    }
+                } else {
+                    // Fallback: calculate based on chart width
+                    var spacing = chartAreaWidth / Math.max(chartData.length - 1, 1);
+                    expectedX = chartPadding + (i * spacing);
+                }
+                
+                // Find bars for this period
+                var closestGreenBar = null;
+                var closestRedBar = null;
+                
+                // For bookings: match sequentially but verify position
+                if ((typeFilter === 'both' || typeFilter === 'bookings') && (dataPoint.bookings || 0) > 0) {
+                    if (greenBarIndex < greenBars.length) {
+                        var candidateBar = greenBars[greenBarIndex];
+                        var distance = Math.abs(candidateBar.centerX - expectedX);
+                        var tolerance = periodSpacing * 0.5; // Allow 50% tolerance
+                        
+                        // If bar is close to expected position, use it
+                        if (distance < tolerance) {
+                            closestGreenBar = candidateBar;
+                            greenBarIndex++;
+                        } else {
+                            // Bar is too far - try to find a closer one
+                            var bestBar = null;
+                            var bestDistance = Infinity;
+                            for (var g = greenBarIndex; g < greenBars.length; g++) {
+                                var testBar = greenBars[g];
+                                var testDistance = Math.abs(testBar.centerX - expectedX);
+                                if (testDistance < tolerance && testDistance < bestDistance) {
+                                    bestDistance = testDistance;
+                                    bestBar = testBar;
+                                }
+                            }
+                            if (bestBar) {
+                                closestGreenBar = bestBar;
+                                var bestIndex = greenBars.indexOf(bestBar);
+                                greenBars.splice(bestIndex, 1);
+                            } else {
+                                // No good match found, use sequential anyway
+                                closestGreenBar = greenBars[greenBarIndex];
+                                greenBarIndex++;
+                            }
+                        }
+                    }
+                }
+                
+                // For penalties: match sequentially but verify position
+                if ((typeFilter === 'both' || typeFilter === 'penalties') && (dataPoint.penalties || 0) > 0) {
+                    if (redBarIndex < redBars.length) {
+                        var candidateBar = redBars[redBarIndex];
+                        var distance = Math.abs(candidateBar.centerX - expectedX);
+                        var tolerance = periodSpacing * 0.5; // Allow 50% tolerance
+                        
+                        // If bar is close to expected position, use it
+                        if (distance < tolerance) {
+                            closestRedBar = candidateBar;
+                            redBarIndex++;
+                        } else {
+                            // Bar is too far - try to find a closer one
+                            var bestBar = null;
+                            var bestDistance = Infinity;
+                            for (var r = redBarIndex; r < redBars.length; r++) {
+                                var testBar = redBars[r];
+                                var testDistance = Math.abs(testBar.centerX - expectedX);
+                                if (testDistance < tolerance && testDistance < bestDistance) {
+                                    bestDistance = testDistance;
+                                    bestBar = testBar;
+                                }
+                            }
+                            if (bestBar) {
+                                closestRedBar = bestBar;
+                                var bestIndex = redBars.indexOf(bestBar);
+                                redBars.splice(bestIndex, 1);
+                            } else {
+                                // No good match found, use sequential anyway
+                                closestRedBar = redBars[redBarIndex];
+                                redBarIndex++;
+                            }
+                        }
+                    }
+                }
+                
+                // Add booking label for ALL values (including zeros)
+                if ((typeFilter === 'both' || typeFilter === 'bookings')) {
+                    var bookingValue = dataPoint.bookings || 0;
+                    var barY = chartHeight - 30; // Default position at bottom for zero values
+                    
+                    if (closestGreenBar) {
+                        // Use bar position if bar exists
+                        barY = Math.max(closestGreenBar.y - 8, 18);
+                    }
+                    
+                    // Calculate X position - ALWAYS use expectedX (label position) for alignment
+                    // This ensures labels align with their periods, not just bars
+                    var labelX = expectedX;
+                    
+                    // When showing both and we have a bar, offset slightly to the left
+                    if (typeFilter === 'both' && closestGreenBar) {
+                        labelX = closestGreenBar.centerX - (closestGreenBar.width * 0.25);
+                    } else if (typeFilter === 'both' && !closestGreenBar) {
+                        labelX = expectedX - 15; // Offset left for zero values when showing both
+                    } else if (closestGreenBar && typeFilter === 'bookings') {
+                        // When showing only bookings, use bar center
+                        labelX = closestGreenBar.centerX;
                     }
                     
                     var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', textX);
-                    text.setAttribute('y', textY);
+                    text.setAttribute('x', labelX);
+                    text.setAttribute('y', barY);
                     text.setAttribute('text-anchor', 'middle');
                     text.setAttribute('font-family', 'Arial, sans-serif');
-                    text.setAttribute('font-size', '11px');
+                    text.setAttribute('font-size', '13px');
                     text.setAttribute('font-weight', 'bold');
-                    text.setAttribute('fill', '#333');
+                    text.setAttribute('fill', bookingValue > 0 ? '#2c3e50' : '#999'); // Gray for zeros
+                    text.setAttribute('class', 'data-label');
+                    text.setAttribute('opacity', bookingValue > 0 ? '1' : '0.6'); // Slightly transparent for zeros
                     text.textContent = bookingValue;
-                    
                     svgElement.appendChild(text);
                 }
                 
-                // Add penalty label
-                if (typeFilter === 'both' || typeFilter === 'penalties') {
+                // Add penalty label for ALL values (including zeros)
+                if ((typeFilter === 'both' || typeFilter === 'penalties')) {
                     var penaltyValue = dataPoint.penalties || 0;
-                    var redBar = (penaltyValue > 0 && redIndex < redBars.length) ? redBars[redIndex++] : null;
+                    var barY = chartHeight - 30; // Default position at bottom for zero values
                     
-                    var textX, textY;
-                    if (redBar) {
-                        // Use actual bar center X for non-zero values
-                        textX = redBar.centerX;
-                        textY = redBar.y - 5;
-                    } else {
-                        // Zero value - position relative to label
-                        textX = labelX + (typeFilter === 'both' ? 20 : 0);
-                        textY = chartBottom - 5;
+                    if (closestRedBar) {
+                        // Use bar position if bar exists
+                        barY = Math.max(closestRedBar.y - 8, 18);
+                    }
+                    
+                    // Calculate X position - ALWAYS use expectedX (label position) for alignment
+                    // This ensures labels align with their periods, not just bars
+                    var labelX = expectedX;
+                    
+                    // When showing both and we have a bar, offset slightly to the right
+                    if (typeFilter === 'both' && closestRedBar) {
+                        labelX = closestRedBar.centerX + (closestRedBar.width * 0.25);
+                    } else if (typeFilter === 'both' && !closestRedBar) {
+                        labelX = expectedX + 15; // Offset right for zero values when showing both
+                    } else if (closestRedBar && typeFilter === 'penalties') {
+                        // When showing only penalties, use bar center
+                        labelX = closestRedBar.centerX;
                     }
                     
                     var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', textX);
-                    text.setAttribute('y', textY);
+                    text.setAttribute('x', labelX);
+                    text.setAttribute('y', barY);
                     text.setAttribute('text-anchor', 'middle');
                     text.setAttribute('font-family', 'Arial, sans-serif');
-                    text.setAttribute('font-size', '11px');
+                    text.setAttribute('font-size', '13px');
                     text.setAttribute('font-weight', 'bold');
-                    text.setAttribute('fill', '#333');
+                    text.setAttribute('fill', penaltyValue > 0 ? '#2c3e50' : '#999'); // Gray for zeros
+                    text.setAttribute('class', 'data-label');
+                    text.setAttribute('opacity', penaltyValue > 0 ? '1' : '0.6'); // Slightly transparent for zeros
                     text.textContent = penaltyValue;
-                    
                     svgElement.appendChild(text);
                 }
             }
+            
+            console.log('Added data labels - Data points:', chartData.length, 'X-axis labels found:', allLabels.length);
         }
         
         function updateDynamicFilter() {
@@ -1328,21 +1590,65 @@
                     '<input type="date" id="endDate" class="form-control" style="display: inline-block; width: 150px;">' +
                     '</div>';
             } else if (parameter === 'month') {
+                // Get available years from masterAnalyticsData
+                var availableYears = Object.keys(masterAnalyticsData ? masterAnalyticsData.monthly : {}).sort(function(a, b) {
+                    return parseInt(b) - parseInt(a); // Descending order (newest first)
+                });
+                
+                // If no years found, use current year and next year
+                if (availableYears.length === 0) {
+                    var currentYear = new Date().getFullYear();
+                    availableYears = [currentYear, currentYear + 1];
+                }
+                
+                var yearOptions = availableYears.map(function(year) {
+                    var selected = year == new Date().getFullYear() ? ' selected' : '';
+                    return '<option value="' + year + '"' + selected + '>' + year + '</option>';
+                }).join('');
+                
                 filterHTML = '<div>' +
                     '<label for="yearSelect">Select Year:</label> ' +
-                                    '<select id="yearSelect" class="form-control" style="display: inline-block; width: 160px;">' +
-                                    '<option value="2024" selected>2024</option>' +
-                                    '<option value="2025">2025</option>' +
-                                    '<option value="2026">2026</option>' +
-                                    '</select>' +
-                                    '</div>';
+                    '<select id="yearSelect" class="form-control" style="display: inline-block; width: 160px;">' +
+                    yearOptions +
+                    '</select>' +
+                    '</div>';
             } else if (parameter === 'quarterly') {
+                // Get available years from quarterly data or monthly data
+                var availableYears = new Set();
+                if (masterAnalyticsData && masterAnalyticsData.quarterly && masterAnalyticsData.quarterly.length > 0) {
+                    masterAnalyticsData.quarterly.forEach(function(item) {
+                        var yearMatch = item.period.match(/\d{4}/);
+                        if (yearMatch) {
+                            availableYears.add(parseInt(yearMatch[0]));
+                        }
+                    });
+                }
+                if (masterAnalyticsData && masterAnalyticsData.monthly) {
+                    Object.keys(masterAnalyticsData.monthly).forEach(function(year) {
+                        availableYears.add(parseInt(year));
+                    });
+                }
+                
+                // Convert to array and sort
+                var yearsArray = Array.from(availableYears).sort(function(a, b) {
+                    return b - a; // Descending order (newest first)
+                });
+                
+                // If no years found, use current year and next year
+                if (yearsArray.length === 0) {
+                    var currentYear = new Date().getFullYear();
+                    yearsArray = [currentYear, currentYear + 1];
+                }
+                
+                var yearOptions = yearsArray.map(function(year) {
+                    var selected = year == new Date().getFullYear() ? ' selected' : '';
+                    return '<option value="' + year + '"' + selected + '>' + year + '</option>';
+                }).join('');
+                
                 filterHTML = '<div>' +
                     '<label for="yearSelectQuarterly">Select Year:</label> ' +
                     '<select id="yearSelectQuarterly" class="form-control" style="display: inline-block; width: 160px;">' +
-                    '<option value="2024" selected>2024</option>' +
-                    '<option value="2025">2025</option>' +
-                    '<option value="2026">2026</option>' +
+                    yearOptions +
                     '</select>' +
                     '</div>';
             }
@@ -1397,9 +1703,6 @@
             $('#select-prompt-chart').hide();
             $('#selectPromptBody').hide();
             
-            // Populate the table with all records first
-            populateRecordsTable();
-            
             // Get data based on parameter
             var chartData = [];
             var hasData = true; // Default to true
@@ -1409,12 +1712,14 @@
                 var endDate = $('#endDate').val();
                 
                 if (startDate && endDate) {
-                    var start = new Date(startDate);
-                    var end = new Date(endDate);
+                    // Parse dates with time to avoid timezone issues
+                    var start = new Date(startDate + 'T00:00:00');
+                    var end = new Date(endDate + 'T23:59:59'); // Include entire end date
                     
                     // Filter records within the date range
                     var filteredRecords = allRecords.filter(function(record) {
-                        var recordDate = new Date(record.date);
+                        if (!record.date) return false;
+                        var recordDate = new Date(record.date + 'T00:00:00');
                         return recordDate >= start && recordDate <= end;
                     });
                     
@@ -1473,76 +1778,126 @@
                 }
             } else if (parameter === 'month') {
                 var selectedYear = $('#yearSelect').val() || '2024';
-                var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                                'July', 'August', 'September', 'October', 'November', 'December'];
+                // Use abbreviated month names for better fit
+                var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                 
-                // Get all 12 months for the selected year
-                chartData = [];
-                hasData = false;
-                
-                for (var i = 0; i < 12; i++) {
-                    var monthData = masterAnalyticsData.monthly[selectedYear][i];
-                    chartData.push({
-                        period: monthNames[i],
-                        bookings: monthData.bookings,
-                        penalties: monthData.penalties
-                    });
+                // Ensure the year exists in monthly data
+                if (!masterAnalyticsData || !masterAnalyticsData.monthly || !masterAnalyticsData.monthly[selectedYear]) {
+                    console.warn('No monthly data for year:', selectedYear);
+                    chartData = [];
+                    for (var i = 0; i < 12; i++) {
+                        chartData.push({
+                            period: monthNames[i],
+                            bookings: 0,
+                            penalties: 0
+                        });
+                    }
+                    hasData = false;
+                } else {
+                    // Get all 12 months for the selected year - ALWAYS include all months
+                    chartData = [];
+                    hasData = false;
                     
-                    // Check if this year has any data
-                    if (monthData.bookings > 0 || monthData.penalties > 0) {
-                        hasData = true;
+                    for (var i = 0; i < 12; i++) {
+                        var monthData = masterAnalyticsData.monthly[selectedYear][i] || { bookings: 0, penalties: 0 };
+                        chartData.push({
+                            period: monthNames[i],
+                            bookings: monthData.bookings || 0,
+                            penalties: monthData.penalties || 0
+                        });
+                        
+                        // Check if this year has any data (but still show all months)
+                        if ((monthData.bookings || 0) > 0 || (monthData.penalties || 0) > 0) {
+                            hasData = true;
+                        }
                     }
                 }
                 
             } else if (parameter === 'quarterly') {
                 var selectedYear = $('#yearSelectQuarterly').val() || '2024';
                 
-                // Filter quarterly data for the selected year
-                chartData = masterAnalyticsData.quarterly.filter(function(item) {
+                // Always show all 4 quarters for the selected year
+                // Check if we have quarterly data for this year
+                var quarterlyDataForYear = masterAnalyticsData.quarterly.filter(function(item) {
                     return item.period.includes(selectedYear);
                 });
                 
-                // Check if there's any data for this year
-                hasData = false;
-                for (var i = 0; i < chartData.length; i++) {
-                    if (chartData[i].bookings > 0 || chartData[i].penalties > 0) {
-                        hasData = true;
-                        break;
-                    }
-                }
+                // Create a map of quarter data for quick lookup
+                var quarterMap = {};
+                quarterlyDataForYear.forEach(function(item) {
+                    quarterMap[item.period] = item;
+                });
                 
-                // If no data for this year, create empty quarters
-                if (chartData.length === 0) {
-                    chartData = [
-                        { period: 'Q1 ' + selectedYear, bookings: 0, penalties: 0 },
-                        { period: 'Q2 ' + selectedYear, bookings: 0, penalties: 0 },
-                        { period: 'Q3 ' + selectedYear, bookings: 0, penalties: 0 },
-                        { period: 'Q4 ' + selectedYear, bookings: 0, penalties: 0 }
-                    ];
+                // Build chart data with all 4 quarters (even if some have no data)
+                chartData = [];
+                hasData = false;
+                
+                for (var q = 1; q <= 4; q++) {
+                    var quarterKey = 'Q' + q + ' ' + selectedYear;
+                    var quarterData = quarterMap[quarterKey] || { period: quarterKey, bookings: 0, penalties: 0 };
+                    
+                    chartData.push({
+                        period: quarterKey,
+                        bookings: quarterData.bookings || 0,
+                        penalties: quarterData.penalties || 0
+                    });
+                    
+                    // Check if this quarter has any data
+                    if ((quarterData.bookings || 0) > 0 || (quarterData.penalties || 0) > 0) {
+                        hasData = true;
+                    }
                 }
             }
             
-            // Apply type filter to chart data
+            // Apply type filter to chart data - but keep all periods (don't filter out zeros for monthly)
             var filteredChartData = chartData.map(function(item) {
                 var newItem = { period: item.period };
                 
                 if (typeFilter === 'both') {
-                    newItem.bookings = item.bookings;
-                    newItem.penalties = item.penalties;
+                    newItem.bookings = item.bookings || 0;
+                    newItem.penalties = item.penalties || 0;
                 } else if (typeFilter === 'bookings') {
-                    newItem.bookings = item.bookings;
+                    newItem.bookings = item.bookings || 0;
                     newItem.penalties = 0;
                 } else if (typeFilter === 'penalties') {
                     newItem.bookings = 0;
-                    newItem.penalties = item.penalties;
+                    newItem.penalties = item.penalties || 0;
                 }
                 
                 return newItem;
             });
             
+            // Log filtered chart data for debugging
+            console.log('Filtered chart data:', filteredChartData);
+            console.log('Has data:', hasData);
+            
             // Update chart - pass hasData flag for month, quarterly, and date parameters
-            var showNoData = ((parameter === 'month' || parameter === 'quarterly' || parameter === 'date') && !hasData);
-            initializeChart(filteredChartData, showNoData ? false : true, typeFilter);
+            // For monthly view, always show chart even if hasData is false (to show all 12 months)
+            var showNoData = false;
+            if (parameter === 'date' || parameter === 'quarterly') {
+                showNoData = !hasData;
+            } else if (parameter === 'month') {
+                // For monthly, always show chart (even if all zeros) to display all 12 months
+                showNoData = false;
+            }
+            
+            initializeChart(filteredChartData, !showNoData, typeFilter);
+            
+            // Repopulate table with all records first, then filter
+            populateRecordsTable();
+            
+            // Reinitialize DataTable if needed
+            if (dataTable) {
+                dataTable.fnDestroy();
+                dataTable = null;
+            }
+            dataTable = $('#dataTables-example').dataTable({
+                "order": [[ 1, "desc" ]],  // Sort by date (column index 1) - newest first
+                "paging": false,  // Disable pagination - show all records
+                "searching": false,  // Disable search box
+                "info": false  // Hide "Showing X to Y of Z entries" text
+            });
             
             // Filter table data based on type and time period
             filterTableByType(typeFilter, showNoData, parameter);
@@ -1630,26 +1985,44 @@
             $('#no-chart-data').hide();
             $('#select-prompt-chart').show();
             
-            // Hide table data and show prompt
-            $('#recordsTableBody').empty();
+            // Repopulate table with all records
+            populateRecordsTable();
+            
+            // Reinitialize DataTable
+            if (dataTable) {
+                dataTable.fnDestroy();
+                dataTable = null;
+            }
+            if (allRecords.length > 0) {
+                dataTable = $('#dataTables-example').dataTable({
+                    "order": [[ 1, "desc" ]],  // Sort by date (column index 1) - newest first
+                    "paging": false,  // Disable pagination - show all records
+                    "searching": false,  // Disable search box
+                    "info": false  // Hide "Showing X to Y of Z entries" text
+                });
+                $('#selectPromptBody').hide();
+            } else {
+                $('#selectPromptBody').show();
+            }
             $('#noResultsBody').hide();
-            $('#selectPromptBody').show();
         }
         
         function populateRecordsTable() {
             var tbody = $('#recordsTableBody');
             tbody.empty();
             
-            // Sort records by date (newest first)
-            var sortedRecords = allRecords.slice().sort(function(a, b) {
-                return new Date(b.date) - new Date(a.date);
-            });
+            if (allRecords.length === 0) {
+                $('#noResultsBody').show();
+                $('#selectPromptBody').hide();
+                return;
+            }
             
-            sortedRecords.forEach(function(record) {
+            // Records are already sorted by date (newest first) from loadAllRecords
+            allRecords.forEach(function(record) {
                 var typeClass = record.type === 'booking' ? 'label-info' : 'label-warning';
                 var typeText = record.type === 'booking' ? 'Booking' : 'Penalty';
                 
-                var row = '<tr data-type="' + record.type + '" data-date="' + record.date + '" data-username="' + record.username + '">' +
+                var row = '<tr data-type="' + record.type + '" data-date="' + record.date + '" data-username="' + (record.username || '').toLowerCase() + '">' +
                     '<td><span class="label ' + typeClass + '">' + typeText + '</span></td>' +
                     '<td>' + formatDate(record.date) + '</td>' +
                     '<td>' + record.details + '</td>' +
@@ -1773,21 +2146,32 @@
                 resetSidebar();
             }, 100);
             
-            // Initialize dynamic filter (will be empty initially)
-            updateDynamicFilter();
+            // Wait for data to load from DOMContentLoaded before initializing
+            // Use a small delay to ensure data is loaded
+            setTimeout(function() {
+                // Initialize dynamic filter (will be empty initially)
+                updateDynamicFilter();
+                
+                // Populate records table with loaded data
+                populateRecordsTable();
+                
+                // Initialize DataTable if data is available
+                if (allRecords.length > 0) {
+                    dataTable = $('#dataTables-example').dataTable({
+                        "order": [[ 1, "desc" ]],  // Sort by date (column index 1) - newest first
+                        "paging": false,  // Disable pagination - show all records
+                        "searching": false,  // Disable search box
+                        "info": false  // Hide "Showing X to Y of Z entries" text
+                    });
+                    $('#selectPromptBody').hide(); // Hide prompt since we have data
+                } else {
+                    $('#selectPromptBody').show(); // Show prompt if no data
+                }
+            }, 500);
             
-            // Don't initialize chart or table on page load - show prompts instead
+            // Don't initialize chart on page load - show prompts instead
             // Show the select prompt messages
             $('#select-prompt-chart').show();
-            $('#selectPromptBody').show();
-            
-            // Initialize DataTable - no pagination, search, or info
-            dataTable = $('#dataTables-example').dataTable({
-                "order": [[ 1, "desc" ]],  // Sort by date (column index 1) - newest first
-                "paging": false,  // Disable pagination - show all records
-                "searching": false,  // Disable search box
-                "info": false  // Hide "Showing X to Y of Z entries" text
-            });
             
             // Handle parameter change to update dynamic filter
             $('#filterByParameter').on('change', function() {
@@ -1867,8 +2251,67 @@
                 }
             }
             
-            // Get the chart SVG
+            // Get the chart SVG and scale it for printing
             var chartSVG = $('#analytics-chart').html();
+            
+            // If SVG exists, modify it for better print scaling
+            if (chartSVG && chartSVG.includes('<svg')) {
+                // Create a temporary container to manipulate the SVG
+                var tempDiv = $('<div>').html(chartSVG);
+                var svgElement = tempDiv.find('svg').first();
+                
+                if (svgElement.length > 0) {
+                    // Get current dimensions
+                    var currentWidth = svgElement.attr('width') || svgElement[0].clientWidth || 800;
+                    var currentHeight = svgElement.attr('height') || svgElement[0].clientHeight || 500;
+                    
+                    // Calculate print dimensions (scale down to fit page)
+                    // Target: ~85% of page width (A4 portrait is ~21cm = ~794px at 96dpi)
+                    // Use 85% to leave margins: ~675px width
+                    var pageWidth = 675; // ~85% of A4 portrait width
+                    var pageHeight = 450; // Max height for A4 portrait with margins
+                    
+                    // Calculate scale factor to fit chart on page
+                    var scaleX = pageWidth / currentWidth;
+                    var scaleY = pageHeight / currentHeight;
+                    var scale = Math.min(scaleX, scaleY, 0.85); // Use smallest scale, max 85%
+                    
+                    var printWidth = currentWidth * scale;
+                    var printHeight = currentHeight * scale;
+                    
+                    // Ensure reasonable minimum size
+                    if (printWidth < 400) {
+                        printWidth = 400;
+                        printHeight = (currentHeight / currentWidth) * printWidth;
+                    }
+                    
+                    // Limit height for print
+                    if (printHeight > 400) {
+                        printHeight = 400;
+                        printWidth = (currentWidth / currentHeight) * printHeight;
+                    }
+                    
+                    // Preserve original viewBox for proper scaling
+                    var originalViewBox = svgElement.attr('viewBox');
+                    if (!originalViewBox && currentWidth && currentHeight) {
+                        svgElement.attr('viewBox', '0 0 ' + currentWidth + ' ' + currentHeight);
+                    }
+                    
+                    // Set SVG dimensions for print (responsive)
+                    svgElement.attr('width', '100%');
+                    svgElement.attr('height', 'auto');
+                    svgElement.attr('preserveAspectRatio', 'xMidYMid meet');
+                    svgElement.css({
+                        'width': '100%',
+                        'max-width': '100%',
+                        'height': 'auto',
+                        'max-height': '400px'
+                    });
+                    
+                    // Get updated SVG HTML
+                    chartSVG = tempDiv.html();
+                }
+            }
             
             // Build legend HTML with inline styles for printing
             var legendHTML = '';
@@ -1924,9 +2367,119 @@
                         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                         th { background-color: #f0f0f0; }
                         
+                        /* Chart scaling for screen preview */
+                        .chart-section svg {
+                            max-width: 100%;
+                            height: auto;
+                        }
+                        
                         @media print {
-                            body { margin: 0; padding: 15px; }
+                            @page {
+                                size: A4 landscape;
+                                margin: 0.5cm;
+                            }
+                            
+                            body { 
+                                margin: 0; 
+                                padding: 10px; 
+                                font-size: 12px;
+                                width: 100%;
+                                max-width: 100%;
+                            }
+                            
                             .no-print { display: none; }
+                            
+                            /* Scale down headings for print */
+                            h1 { font-size: 18px; margin-bottom: 6px; }
+                            h3 { font-size: 14px; margin-bottom: 6px; }
+                            
+                            /* Scale down filter info */
+                            .filter-info { 
+                                margin-bottom: 12px; 
+                                padding: 6px; 
+                                font-size: 10px; 
+                            }
+                            
+                            /* Scale down chart for printing - fit to page width */
+                            .chart-section {
+                                margin-bottom: 20px;
+                                page-break-inside: avoid;
+                                width: 100%;
+                            }
+                            
+                            /* Container for chart SVG - scale for print */
+                            .chart-container {
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                overflow: visible !important;
+                                text-align: center;
+                                margin: 0 auto 10px auto !important;
+                            }
+                            
+                            /* Scale SVG chart to fit page - maintain aspect ratio */
+                            .chart-container svg {
+                                width: 90% !important;
+                                max-width: 90% !important;
+                                height: auto !important;
+                                max-height: 280px !important;
+                                min-height: 200px !important;
+                                display: block;
+                                margin: 0 auto;
+                            }
+                            
+                            /* Ensure SVG scales properly by removing fixed dimensions */
+                            .chart-container svg[width],
+                            .chart-container svg[height] {
+                                width: 90% !important;
+                                height: auto !important;
+                            }
+                            
+                            /* Scale down SVG text elements for readability when printed */
+                            .chart-container svg text {
+                                font-size: 9px !important;
+                            }
+                            
+                            .chart-container svg .data-label {
+                                font-size: 8px !important;
+                                font-weight: bold !important;
+                            }
+                            
+                            /* Scale down legend for print */
+                            .chart-legend-container {
+                                font-size: 9px !important;
+                                padding: 6px !important;
+                                margin-top: 8px !important;
+                                text-align: center;
+                            }
+                            
+                            .chart-legend-container span {
+                                font-size: 9px !important;
+                            }
+                            
+                            .chart-legend-container span span:first-child {
+                                width: 16px !important;
+                                height: 16px !important;
+                                margin-right: 6px !important;
+                            }
+                            
+                            /* Scale down table for print */
+                            table { font-size: 10px; }
+                            th, td { padding: 4px; font-size: 10px; }
+                            
+                            /* Ensure colors print */
+                            .chart-section svg rect,
+                            .chart-section svg path,
+                            .chart-section svg circle {
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                                color-adjust: exact !important;
+                            }
+                            
+                            /* Prevent page breaks inside chart or table */
+                            .chart-section, .table-section {
+                                page-break-inside: avoid;
+                                break-inside: avoid;
+                            }
                         }
                     </style>
                 </head>
@@ -1938,8 +2491,8 @@
                     </div>
                     <div class="chart-section">
                         <h3>Bookings Made vs Penalties Issued</h3>
-                        <div>${chartSVG || 'No chart data available'}</div>
-                        <div>${legendHTML || ''}</div>
+                        <div class="chart-container" style="width: 100%; overflow: hidden; text-align: center; margin: 0 auto;">${chartSVG || 'No chart data available'}</div>
+                        <div class="chart-legend-container">${legendHTML || ''}</div>
                     </div>
                     <div class="table-section">
                         <h3>Records Table</h3>

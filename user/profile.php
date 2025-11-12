@@ -1,3 +1,28 @@
+<?php
+// Minimal .env loader (no external deps). Loads KEY=VALUE pairs into $_ENV.
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(ltrim($line), '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
+            // Remove optional surrounding quotes
+            $len = strlen($value);
+            if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
+                $value = substr($value, 1, $len - 2);
+            }            
+            $_ENV[$key] = $value;
+        }
+    }
+}
+$SUPABASE_URL = $_ENV['SUPABASE_URL'] ?? '';
+$SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -16,6 +41,15 @@
     <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
     <!-- TABLE STYLES-->
     <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <!-- Supabase JS v2 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Injected from server-side env. The anon key is safe to expose client-side.
+        window.__SUPABASE__ = {
+            url: "<?php echo htmlspecialchars($SUPABASE_URL, ENT_QUOTES, 'UTF-8'); ?>",
+            anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
+        };
+    </script>
     <style>
         body::-webkit-scrollbar {
             display: none;
@@ -241,6 +275,7 @@
         .update-form input {
             width: 100%;
             padding: 12px 16px;
+            padding-right: 45px;
             border: 1px solid #dee2e6;
             border-radius: 8px;
             font-size: 14px;
@@ -257,6 +292,25 @@
         .update-form input::placeholder {
             color: #adb5bd;
             font-weight: 400;
+        }
+        
+        .form-group-update {
+            position: relative;
+        }
+        
+        .toggle-password {
+            position: absolute;
+            right: 16px;
+            bottom: 12px;
+            cursor: pointer;
+            color: #6c757d;
+            font-size: 16px;
+            transition: color 0.2s;
+            z-index: 10;
+        }
+        
+        .toggle-password:hover {
+            color: #3F729B;
         }
         
         .update-modal-footer {
@@ -675,6 +729,91 @@
                 text-align: center;
             }
         }
+        
+        /* Wrapper for disabled button tooltip */
+        .btn-danger-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        /* Disabled Account Deletion Button Styles */
+        .btn-danger:disabled,
+        .btn-danger[disabled] {
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            background-color: #6c757d !important;
+            border-color: #6c757d !important;
+            pointer-events: auto !important;
+        }
+        
+        .btn-danger:disabled:hover,
+        .btn-danger[disabled]:hover {
+            background-color: #6c757d !important;
+            border-color: #6c757d !important;
+            opacity: 0.6 !important;
+        }
+        
+        /* Class-based tooltip for better browser support - only show when has-disabled class */
+        .btn-danger-wrapper.has-disabled:hover::after {
+            content: "Penalties are currently unpaid" !important;
+            position: absolute !important;
+            bottom: calc(100% + 10px) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: #333 !important;
+            color: #fff !important;
+            padding: 8px 12px !important;
+            border-radius: 4px !important;
+            font-size: 13px !important;
+            white-space: nowrap !important;
+            z-index: 10000 !important;
+            pointer-events: none !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+        }
+        
+        .btn-danger-wrapper.has-disabled:hover::before {
+            content: "" !important;
+            position: absolute !important;
+            bottom: calc(100% + 4px) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            border: 6px solid transparent !important;
+            border-top-color: #333 !important;
+            z-index: 10001 !important;
+            pointer-events: none !important;
+        }
+        
+        /* Fallback: Direct button hover (some browsers allow hover on disabled buttons) */
+        .btn-danger:disabled:hover::after,
+        .btn-danger[disabled]:hover::after {
+            content: "Penalties are currently unpaid" !important;
+            position: absolute !important;
+            bottom: calc(100% + 10px) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: #333 !important;
+            color: #fff !important;
+            padding: 8px 12px !important;
+            border-radius: 4px !important;
+            font-size: 13px !important;
+            white-space: nowrap !important;
+            z-index: 10000 !important;
+            pointer-events: none !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+        }
+        
+        .btn-danger:disabled:hover::before,
+        .btn-danger[disabled]:hover::before {
+            content: "" !important;
+            position: absolute !important;
+            bottom: calc(100% + 4px) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            border: 6px solid transparent !important;
+            border-top-color: #333 !important;
+            z-index: 10001 !important;
+            pointer-events: none !important;
+        }
     </style>
 </head>
 <body>
@@ -737,7 +876,7 @@
                             <!-- Profile Photo Field -->
                             <div class="profile-photo-field">
                                 <div class="photo-preview-container">
-                                    <img src="https://ui-avatars.com/api/?name=Marcus+Chen&size=120&background=3F729B&color=fff&font-size=0.4&bold=true" 
+                                    <img src="" 
                                          alt="Profile Photo" 
                                          class="profile-photo-preview" 
                                          id="profilePhotoPreview">
@@ -748,7 +887,7 @@
                                 <div class="photo-info">
                                     <h4>Profile Photo</h4>
                                     <p>Click the camera icon to upload or update your profile photo.<br>
-                                    Recommended: Square image, at least 400x400 pixels. Max size: 5MB.</p>
+                                    Max size: 10MB.</p>
                                 </div>
                             </div>
                             
@@ -759,7 +898,7 @@
                                 </div>
                                 <div class="field-content">
                                     <label>Username</label>
-                                    <div class="field-value" id="username">marcus_chen87</div>
+                                    <div class="field-value" id="username">Loading...</div>
                                 </div>
                             </div>
                             
@@ -770,7 +909,7 @@
                                 </div>
                                 <div class="field-content">
                                     <label>Email Address</label>
-                                    <div class="field-value" id="email">marcus.chen@helplive.edu.my</div>
+                                    <div class="field-value" id="email">Loading...</div>
                                 </div>
                                 <div class="field-action">
                                     <button class="btn btn-primary btn-sm update-btn" onclick="openUpdateModal('email')">
@@ -794,22 +933,6 @@
                                     </button>
                                 </div>
                             </div>
-                            
-                            <!-- Phone Number Field -->
-                            <div class="profile-field">
-                                <div class="field-icon">
-                                    <i class="fa fa-phone"></i>
-                                </div>
-                                <div class="field-content">
-                                    <label>Phone Number</label>
-                                    <div class="field-value" id="phone">+60 12-345 6789</div>
-                                </div>
-                                <div class="field-action">
-                                    <button class="btn btn-primary btn-sm update-btn" onclick="openUpdateModal('phone')">
-                                        <i class="fa fa-edit"></i> Update
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                         <!--End Profile Fields Container -->
                         
@@ -821,9 +944,11 @@
                             <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">
                                 Once you delete your account, there is no going back. Please be certain.
                             </p>
-                            <button class="btn btn-danger" onclick="openDeleteModal()" style="padding: 10px 24px; font-weight: 600;">
-                                <i class="fa fa-trash"></i> Request Account Deletion
-                            </button>
+                            <div class="btn-danger-wrapper" style="display: inline-block; position: relative;">
+                                <button class="btn btn-danger" onclick="openDeleteModal()" style="padding: 10px 24px; font-weight: 600; position: relative;">
+                                    <i class="fa fa-trash"></i> Request Account Deletion
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -854,7 +979,7 @@
                             </div>
                             <div class="upload-text">
                                 <h4>Click to upload or drag and drop</h4>
-                                <p>JPG, JPEG, PNG or GIF (Max size: 5MB)</p>
+                                <p>JPG, JPEG, PNG or GIF (Max size: 10MB)</p>
                             </div>
                         </div>
                         <input type="file" id="photoFileInput" class="file-input-hidden" accept="image/jpeg,image/jpg,image/png,image/gif">
@@ -866,9 +991,21 @@
                             <label for="newEmail">New Email Address <span class="required">*</span></label>
                             <input type="email" id="newEmail" placeholder="e.g., marcus.chen@fortiroom.com" required>
                         </div>
+                        <div class="form-group-update" id="emailCodeSection" style="display: none;">
+                            <label for="emailCode">Verification Code <span class="required">*</span></label>
+                            <input type="text" id="emailCode" placeholder="Enter the 6-digit code sent to your new email" maxlength="6" pattern="[0-9]{6}" style="text-align: center; font-size: 18px; letter-spacing: 4px; font-weight: 600;">
+                            <p style="margin-top: 8px; font-size: 13px; color: #6c757d;">
+                                <i class="fa fa-info-circle"></i> Check your new email inbox (and spam folder) for the verification code. Enter the 6-digit code you received.
+                            </p>
+
+                        </div>
                         <div class="form-group-update">
-                            <label for="confirmEmail">Confirm Email Address <span class="required">*</span></label>
-                            <input type="email" id="confirmEmail" placeholder="Re-enter email address" required>
+                            <button type="button" id="requestCodeBtn" class="btn btn-primary" style="width: 100%; padding: 10px; margin-top: 5px;" onclick="requestEmailCode()">
+                                <i class="fa fa-paper-plane"></i> Request Code
+                            </button>
+                            <p style="margin-top: 10px; font-size: 12px; color: #6c757d; text-align: center;">
+                                A verification code will be sent to the new email address
+                            </p>
                         </div>
                     </div>
                     
@@ -877,28 +1014,20 @@
                         <div class="form-group-update">
                             <label for="currentPassword">Current Password <span class="required">*</span></label>
                             <input type="password" id="currentPassword" placeholder="Enter your current password" required>
+                            <i class="fa fa-eye-slash toggle-password" data-target="currentPassword"></i>
                         </div>
                         <div class="form-group-update">
                             <label for="newPassword">New Password <span class="required">*</span></label>
                             <input type="password" id="newPassword" placeholder="Enter new password (min. 8 characters)" required>
+                            <i class="fa fa-eye-slash toggle-password" data-target="newPassword"></i>
                         </div>
                         <div class="form-group-update">
                             <label for="confirmPassword">Confirm New Password <span class="required">*</span></label>
                             <input type="password" id="confirmPassword" placeholder="Re-enter new password" required>
+                            <i class="fa fa-eye-slash toggle-password" data-target="confirmPassword"></i>
                         </div>
                     </div>
                     
-                    <!-- Phone Number Update Form -->
-                    <div id="phoneForm" class="update-form" style="display: none;">
-                        <div class="form-group-update">
-                            <label for="newPhone">New Phone Number <span class="required">*</span></label>
-                            <input type="tel" id="newPhone" placeholder="+60 12-345 6789" required>
-                        </div>
-                        <div class="form-group-update">
-                            <label for="confirmPhone">Confirm Phone Number <span class="required">*</span></label>
-                            <input type="tel" id="confirmPhone" placeholder="Re-enter phone number" required>
-                        </div>
-                </div>
                 </form>
             </div>
             <div class="update-modal-footer">
@@ -949,14 +1078,165 @@
     <script>
         var currentUpdateField = null;
         var selectedPhotoFile = null;
-        
-        // Profile data
+        var supabase = null;
+        var currentUser = null;
+        var hasPendingPenalties = false;
         var profileData = {
-            username: 'marcus_chen87',
-            email: 'marcus.chen@fortiroom.com',
-            phone: '+60 12-345 6789',
-            photo: 'https://ui-avatars.com/api/?name=Marcus+Chen&size=120&background=3F729B&color=fff&font-size=0.4&bold=true'
+            username: '',
+            email: '',
+            photo: ''
         };
+        
+        // Initialize Supabase and load user data
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Supabase
+            const { createClient } = window.supabase || {};
+            if (!createClient) {
+                console.error('Supabase library failed to load.');
+                return;
+            }
+            supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
+            
+            // Check if user is logged in
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+                // Redirect to login if not authenticated
+                window.location.href = '../login.php';
+                return;
+            }
+            
+            currentUser = sessionData.session.user;
+            
+            // Check for pending penalties
+            await checkPendingPenalties();
+            
+            await loadUserProfile();
+        });
+        
+        // Check for pending penalties
+        async function checkPendingPenalties() {
+            if (!currentUser || !supabase) {
+                return;
+            }
+            
+            try {
+                const { data: penalties, error: penaltiesError } = await supabase
+                    .from('penalties')
+                    .select('id, status')
+                    .eq('user_id', currentUser.id)
+                    .eq('status', 'pending')
+                    .limit(1);
+                
+                if (penaltiesError) {
+                    // If table doesn't exist, assume no penalties
+                    if (penaltiesError.message && (
+                        penaltiesError.message.includes('does not exist') || 
+                        penaltiesError.message.includes('relation') || 
+                        penaltiesError.message.includes('42P01')
+                    )) {
+                        hasPendingPenalties = false;
+                    } else {
+                        console.error('Error checking pending penalties:', penaltiesError);
+                        hasPendingPenalties = false;
+                    }
+                } else {
+                    hasPendingPenalties = penalties && penalties.length > 0;
+                }
+                
+                // Update Account Deletion button state
+                updateAccountDeletionButtonState();
+            } catch (error) {
+                console.error('Error in checkPendingPenalties:', error);
+                hasPendingPenalties = false;
+                updateAccountDeletionButtonState();
+            }
+        }
+        
+        // Update Account Deletion button state based on pending penalties
+        function updateAccountDeletionButtonState() {
+            const deleteBtn = $('.btn-danger');
+            if (!deleteBtn.length) {
+                return;
+            }
+            
+            if (hasPendingPenalties) {
+                // Set disabled attribute
+                deleteBtn.prop('disabled', true);
+                deleteBtn.attr('disabled', 'disabled');
+                
+                // Force styles using inline styles with !important
+                const btnElement = deleteBtn[0];
+                if (btnElement) {
+                    btnElement.style.setProperty('opacity', '0.6', 'important');
+                    btnElement.style.setProperty('cursor', 'not-allowed', 'important');
+                    btnElement.style.setProperty('background-color', '#6c757d', 'important');
+                    btnElement.style.setProperty('border-color', '#6c757d', 'important');
+                    btnElement.style.setProperty('position', 'relative', 'important');
+                }
+                
+                // Add class to wrapper for tooltip
+                let wrapper = deleteBtn.closest('.btn-danger-wrapper');
+                if (!wrapper.length) {
+                    // Wrap button if wrapper doesn't exist
+                    deleteBtn.wrap('<div class="btn-danger-wrapper" style="display: inline-block; position: relative;"></div>');
+                    wrapper = deleteBtn.closest('.btn-danger-wrapper');
+                }
+                if (wrapper.length) {
+                    wrapper.addClass('has-disabled');
+                }
+            } else {
+                // Remove disabled attribute
+                deleteBtn.prop('disabled', false);
+                deleteBtn.removeAttr('disabled');
+                
+                // Remove inline styles
+                const btnElement = deleteBtn[0];
+                if (btnElement) {
+                    btnElement.style.removeProperty('opacity');
+                    btnElement.style.removeProperty('cursor');
+                    btnElement.style.removeProperty('background-color');
+                    btnElement.style.removeProperty('border-color');
+                    btnElement.style.removeProperty('position');
+                }
+                
+                // Remove class from wrapper
+                const wrapper = deleteBtn.closest('.btn-danger-wrapper');
+                if (wrapper.length) {
+                    wrapper.removeClass('has-disabled');
+                }
+            }
+        }
+        
+        // Load user profile data from Supabase
+        async function loadUserProfile() {
+            if (!currentUser) return;
+            
+            // Get username from user_metadata
+            const username = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'User';
+            const email = currentUser.email || 'No email';
+            const avatarUrl = currentUser.user_metadata?.avatar_url || null;
+            
+            // Update UI
+            document.getElementById('username').textContent = username;
+            document.getElementById('email').textContent = email;
+            
+            // Update profile photo
+            const photoPreview = document.getElementById('profilePhotoPreview');
+            if (avatarUrl) {
+                photoPreview.src = avatarUrl;
+            } else {
+                // Generate avatar from username
+                const encodedName = encodeURIComponent(username);
+                photoPreview.src = `https://ui-avatars.com/api/?name=${encodedName}&size=120&background=3F729B&color=fff&font-size=0.4&bold=true`;
+            }
+            
+            // Store in profileData for compatibility
+            profileData = {
+                username: username,
+                email: email,
+                photo: avatarUrl || photoPreview.src
+            };
+        }
         
         function openUpdateModal(field) {
             currentUpdateField = field;
@@ -998,10 +1278,272 @@
             selectedPhotoFile = null;
             $('#uploadPreviewContainer').hide();
             $('#photoFileInput').val('');
+            
+            // Reset email verification state
+            $('#emailCodeSection').hide();
+            $('#emailCode').val('');
+            
+            // Clear countdown if active
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            
+            // Reset button
+            $('#requestCodeBtn').prop('disabled', false);
+            $('#requestCodeBtn').css({
+                'background-color': '',
+                'cursor': '',
+                'opacity': ''
+            });
+            $('#requestCodeBtn').html('<i class="fa fa-paper-plane"></i> Request Code');
+            lastCodeRequestTime = 0;
         }
         
-        function saveUpdate() {
-            if (!currentUpdateField) return;
+        // Track when code was last requested to prevent rate limiting
+        var lastCodeRequestTime = 0;
+        var CODE_REQUEST_COOLDOWN = 60000; // 60 seconds (1 minute)
+        var countdownInterval = null;
+        
+        // Helper function to handle logout after email update for security
+        async function logoutAfterEmailUpdate() {
+            // Update UI first
+            closeUpdateModal();
+            
+            // Show security notification
+            alert('Email address updated successfully!\n\nFor security purposes, the system will log you out. Please log in again with your new email address.');
+            
+            // Log out from Supabase
+            try {
+                await supabase.auth.signOut();
+                console.log('User logged out after email update');
+            } catch (logoutError) {
+                console.error('Logout error:', logoutError);
+            }
+            
+            // Redirect to login page
+            setTimeout(() => {
+                window.location.href = '../login.php';
+            }, 500);
+        }
+        
+        // Helper function to handle logout after password update for security
+        async function logoutAfterPasswordUpdate() {
+            // Update UI first
+            closeUpdateModal();
+            
+            // Show security notification
+            alert('Password updated successfully!\n\nFor security purposes, the system will log you out. Please log in again with your new password.');
+            
+            // Log out from Supabase
+            try {
+                await supabase.auth.signOut();
+                console.log('User logged out after password update');
+            } catch (logoutError) {
+                console.error('Logout error:', logoutError);
+            }
+            
+            // Redirect to login page
+            setTimeout(() => {
+                window.location.href = '../login.php';
+            }, 500);
+        }
+        
+        // Start countdown timer on the button
+        function startCountdown() {
+            var remainingSeconds = CODE_REQUEST_COOLDOWN / 1000;
+            var btn = $('#requestCodeBtn');
+            
+            // Clear any existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            // Disable button and style it as grayed out
+            btn.prop('disabled', true);
+            btn.css({
+                'background-color': '#6c757d',
+                'cursor': 'not-allowed',
+                'opacity': '0.6'
+            });
+            
+            // Update button text with countdown
+            function updateCountdown() {
+                if (remainingSeconds > 0) {
+                    btn.html('<i class="fa fa-clock-o"></i> Request Code (' + remainingSeconds + 's)');
+                    remainingSeconds--;
+                } else {
+                    // Countdown finished, enable button
+                    clearInterval(countdownInterval);
+                    btn.prop('disabled', false);
+                    btn.css({
+                        'background-color': '',
+                        'cursor': '',
+                        'opacity': ''
+                    });
+                    btn.html('<i class="fa fa-paper-plane"></i> Request Code');
+                    countdownInterval = null;
+                }
+            }
+            
+            // Update immediately
+            updateCountdown();
+            
+            // Update every second
+            countdownInterval = setInterval(updateCountdown, 1000);
+        }
+        
+        // Request verification code for email change
+        async function requestEmailCode() {
+            if (!supabase || !currentUser) {
+                alert('Please wait for the page to load completely.');
+                return;
+            }
+            
+            var newEmail = $('#newEmail').val().trim().toLowerCase();
+            
+            if (!newEmail) {
+                alert('Please enter a new email address first.');
+                return;
+            }
+            
+            // Validate email format
+            var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(newEmail)) {
+                alert('Please enter a valid email address.');
+                return;
+            }
+            
+            // Check if it's the same as current email
+            if (newEmail === currentUser.email) {
+                alert('The new email address must be different from your current email.');
+                return;
+            }
+            
+            // Check rate limit - prevent requesting too soon
+            var now = Date.now();
+            var timeSinceLastRequest = now - lastCodeRequestTime;
+            
+            if (lastCodeRequestTime > 0 && timeSinceLastRequest < CODE_REQUEST_COOLDOWN) {
+                var remainingSeconds = Math.ceil((CODE_REQUEST_COOLDOWN - timeSinceLastRequest) / 1000);
+                alert('Please wait ' + remainingSeconds + ' more seconds before requesting another code.');
+                return;
+            }
+            
+            // Disable button and show loading state
+            $('#requestCodeBtn').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending...');
+            
+            try {
+                console.log('Requesting email change for:', newEmail);
+                
+                const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+                    email: newEmail,
+                    options: {
+                        emailRedirectTo: window.location.origin + window.location.pathname
+                    }
+                });
+                
+                console.log('Update user response:', { data: updateData, error: updateError });
+                
+                if (updateError) {
+                    console.error('Email update error details:', {
+                        message: updateError.message,
+                        status: updateError.status,
+                        error: updateError
+                    });
+                    
+                    // Check if the error is because email change requires confirmation
+                    // In this case, Supabase should have sent an email anyway
+                    if (updateError.message && (
+                        updateError.message.includes('email_change') || 
+                        updateError.message.includes('confirmation') || 
+                        updateError.message.includes('sent') ||
+                        updateError.message.includes('verify') ||
+                        updateError.message.includes('check your email')
+                    ) && !updateError.message.includes('rate limit') && !updateError.message.includes('40')) {
+                        // Email was likely sent, show code input
+                        console.log('Email was sent despite error, showing code input');
+                        lastCodeRequestTime = Date.now();
+                        startCountdown();
+                        $('#emailCodeSection').slideDown();
+                        alert('Verification code has been sent to ' + newEmail + '. Please check your inbox (and spam folder) and enter the code below.');
+                        return;
+                    }
+                    
+                    // Check for rate limit errors
+                    if (updateError.message && (updateError.message.includes('rate limit') || 
+                        updateError.message.includes('40') || 
+                        updateError.message.includes('security purposes'))) {
+                        var waitTime = 45; // seconds
+                        throw new Error('Please wait ' + waitTime + ' seconds before requesting another code. This is a security measure.');
+                    }
+                    
+                    // If it's a different error, show it
+                    throw updateError;
+                }
+                
+                // Record the time when code was requested
+                lastCodeRequestTime = Date.now();
+                
+                // Start countdown timer
+                startCountdown();
+                
+                const { data: sessionData } = await supabase.auth.getSession();
+                console.log('Current session after update:', sessionData);
+                
+                if (sessionData?.session?.user?.email === newEmail) {
+                    // Email was updated immediately (if email confirmation is disabled)
+                    console.log('Email updated immediately');
+                    $('#email').text(newEmail);
+                    profileData.email = newEmail;
+                    currentUser = sessionData.session.user;
+                    await logoutAfterEmailUpdate();
+                    return;
+                }
+                
+                // Email change requires confirmation - show code input
+                console.log('Email change requires confirmation, showing code input');
+                $('#emailCodeSection').slideDown();
+                alert('Verification code has been sent to ' + newEmail + '. Please check your inbox (and spam folder) and enter the code below.');
+                
+            } catch (error) {
+                console.error('Request code error:', error);
+                
+                // Only reset button if countdown hasn't started (i.e., request failed before sending)
+                // If countdown is active, keep it running
+                if (!countdownInterval) {
+                    $('#requestCodeBtn').prop('disabled', false);
+                    $('#requestCodeBtn').css({
+                        'background-color': '',
+                        'cursor': '',
+                        'opacity': ''
+                    });
+                    $('#requestCodeBtn').html('<i class="fa fa-paper-plane"></i> Request Code');
+                }
+                
+                // Provide helpful error messages
+                let errorMessage = 'Failed to send verification code. ';
+                
+                if (error.message) {
+                    if (error.message.includes('rate limit') || error.message.includes('too many')) {
+                        errorMessage = 'Too many requests. Please wait a few minutes before requesting another code.';
+                    } else if (error.message.includes('already') || error.message.includes('in use')) {
+                        errorMessage = 'This email address is already in use. Please use a different email.';
+                    } else if (error.message.includes('invalid')) {
+                        errorMessage = 'Invalid email address. Please check and try again.';
+                    } else {
+                        errorMessage += error.message;
+                    }
+                } else {
+                    errorMessage += 'Please try again.';
+                }
+                
+                alert(errorMessage);
+            }
+        }
+        
+        async function saveUpdate() {
+            if (!currentUpdateField || !supabase || !currentUser) return;
             
             if (currentUpdateField === 'photo') {
                 if (!selectedPhotoFile) {
@@ -1009,28 +1551,56 @@
                     return;
                 }
                 
-                // In a real application, you would upload the file to the server here
-                // For now, we'll just update the preview with the selected file
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    profileData.photo = e.target.result;
-                    $('#profilePhotoPreview').attr('src', e.target.result);
+                try {
+                    // Upload photo to Supabase Storage via server endpoint
+                    const fd = new FormData();
+                    fd.append('file', selectedPhotoFile);
+                    fd.append('username', currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'user');
+                    
+                    const res = await fetch('../upload_avatar.php', { method: 'POST', body: fd });
+                    const json = await res.json().catch(() => ({}));
+                    
+                    if (!res.ok || json.error) {
+                        throw new Error(json.error || 'Avatar upload failed.');
+                    }
+                    
+                    const avatarUrl = json.publicUrl || null;
+                    
+                    // Update user metadata with new avatar URL
+                    const { error: updateError } = await supabase.auth.updateUser({
+                        data: { 
+                            ...currentUser.user_metadata,
+                            avatar_url: avatarUrl 
+                        }
+                    });
+                    
+                    if (updateError) {
+                        throw updateError;
+                    }
+                    
+                    // Update UI
+                    $('#profilePhotoPreview').attr('src', avatarUrl);
+                    profileData.photo = avatarUrl;
+                    
+                    // Reload user data to get updated metadata
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    if (sessionData?.session) {
+                        currentUser = sessionData.session.user;
+                    }
+                    
                     closeUpdateModal();
                     alert('Profile photo updated successfully!');
-                };
-                reader.readAsDataURL(selectedPhotoFile);
-                
-            } else if (currentUpdateField === 'email') {
-                var newEmail = $('#newEmail').val();
-                var confirmEmail = $('#confirmEmail').val();
-                
-                if (!newEmail || !confirmEmail) {
-                    alert('Please fill in all fields.');
-                    return;
+                } catch (error) {
+                    console.error('Photo update error:', error);
+                    alert(error.message || 'Failed to update profile photo. Please try again.');
                 }
                 
-                if (newEmail !== confirmEmail) {
-                    alert('Email addresses do not match. Please try again.');
+            } else if (currentUpdateField === 'email') {
+                var newEmail = $('#newEmail').val().trim().toLowerCase();
+                var emailCode = $('#emailCode').val().trim();
+                
+                if (!newEmail) {
+                    alert('Please enter a new email address.');
                     return;
                 }
                 
@@ -1041,12 +1611,205 @@
                     return;
                 }
                 
-                // Update email in profile
-                profileData.email = newEmail;
-                $('#email').text(newEmail);
+                // Check if code section is visible (code was requested)
+                if (!$('#emailCodeSection').is(':visible')) {
+                    alert('Please request a verification code first.');
+                    return;
+                }
                 
-                closeUpdateModal();
-                alert('Email address updated successfully!');
+                if (!emailCode || emailCode.length !== 6) {
+                    alert('Please enter the 6-digit verification code.');
+                    return;
+                }
+                
+                try {
+                    // Verify the OTP code for email change
+                    // IMPORTANT: verifyOtp with type 'email_change' will automatically update the email
+                    // We should NOT call updateUser again as it causes rate limiting issues
+                    console.log('Verifying OTP code for email change:', { email: newEmail, codeLength: emailCode.length });
+                    
+                    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+                        email: newEmail,
+                        token: emailCode,
+                        type: 'email_change'
+                    });
+                    
+                    if (verifyError) {
+                        console.error('OTP verification error:', verifyError);
+                        
+                        // Handle specific error cases
+                        if (verifyError.message) {
+                            // Rate limit error
+                            if (verifyError.message.includes('40') || verifyError.message.includes('rate limit') || 
+                                verifyError.message.includes('security purposes')) {
+                                throw new Error('Please wait a moment before verifying. For security, there is a 60-second cooldown between email change requests. Please try again in a few seconds.');
+                            }
+                            
+                            // Expired token
+                            if (verifyError.message.includes('expired') || verifyError.message.includes('Expired')) {
+                                throw new Error('The verification code has expired. Please request a new code.');
+                            }
+                            
+                            // Invalid token
+                            if (verifyError.message.includes('Invalid') || verifyError.message.includes('invalid') || 
+                                verifyError.message.includes('token')) {
+                                throw new Error('Invalid verification code. Please check the code and try again.');
+                            }
+                        }
+                        
+                        throw verifyError;
+                    }
+                    
+                    console.log('OTP verification successful:', verifyData);
+                    
+                    // After successful OTP verification with type 'email_change', Supabase should automatically update the email
+                    // First, update the session if provided in the response
+                    if (verifyData?.session) {
+                        await supabase.auth.setSession(verifyData.session);
+                        console.log('Session updated from verifyOtp response');
+                    }
+                    
+                    // Check if the user data in the response has the updated email
+                    let emailUpdated = false;
+                    if (verifyData?.user?.email === newEmail) {
+                        console.log('Email found in verifyOtp response user data');
+                        emailUpdated = true;
+                        currentUser = verifyData.user;
+                    } else if (verifyData?.session?.user?.email === newEmail) {
+                        console.log('Email found in verifyOtp response session data');
+                        emailUpdated = true;
+                        currentUser = verifyData.session.user;
+                    }
+                    
+                    // Refresh the session to get the latest data
+                    console.log('Refreshing session to get latest user data...');
+                    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+                    
+                    if (!refreshError && refreshData?.session) {
+                        console.log('Session refreshed successfully');
+                        if (refreshData.session.user?.email === newEmail) {
+                            console.log('Email found in refreshed session');
+                            emailUpdated = true;
+                            currentUser = refreshData.session.user;
+                        }
+                    }
+                    
+                    // Get the latest user data directly
+                    console.log('Getting latest user data...');
+                    const { data: userData, error: userError } = await supabase.auth.getUser();
+                    
+                    if (!userError && userData?.user) {
+                        console.log('Current user data:', userData.user);
+                        if (userData.user.email === newEmail) {
+                            console.log('Email successfully updated to:', newEmail);
+                            emailUpdated = true;
+                            currentUser = userData.user;
+                        } else {
+                            console.warn('Email not yet updated. Current:', userData.user.email, 'Expected:', newEmail);
+                        }
+                    }
+                    
+                    // Also check session data
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    if (sessionData?.session?.user?.email === newEmail) {
+                        console.log('Email found in session data');
+                        emailUpdated = true;
+                        currentUser = sessionData.session.user;
+                    }
+                    
+                    if (emailUpdated) {
+                        // Email was updated successfully
+                        $('#email').text(newEmail);
+                        profileData.email = newEmail;
+                        await logoutAfterEmailUpdate();
+                        return;
+                    }
+                    
+                    // If email wasn't updated automatically, we need to apply it manually
+                    // This can happen if Supabase requires explicit confirmation
+                    console.log('Email not automatically updated, attempting manual update...');
+                    
+                    // Wait a moment for Supabase to process
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Try to update the email explicitly
+                    // Since OTP is verified, this should work without sending another email
+                    const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+                        email: newEmail
+                    });
+                    
+                    if (updateError) {
+                        console.error('Manual update error:', updateError);
+                        // Check if it's because email is already the same/updated
+                        if (updateError.message && (
+                            updateError.message.includes('already') ||
+                            updateError.message.includes('same') ||
+                            updateError.message.includes('unchanged') ||
+                            updateError.message.includes('identical')
+                        )) {
+                            // Email is already updated, just refresh
+                            console.log('Email already updated according to error message');
+                            $('#email').text(newEmail);
+                            profileData.email = newEmail;
+                            await logoutAfterEmailUpdate();
+                            return;
+                        }
+                        
+                        // If it's a rate limit, the email might still be updated
+                        if (updateError.message && updateError.message.includes('rate limit')) {
+                            console.log('Rate limit hit, but checking if email was updated...');
+                            const { data: checkData } = await supabase.auth.getUser();
+                            if (checkData?.user?.email === newEmail) {
+                                $('#email').text(newEmail);
+                                profileData.email = newEmail;
+                                currentUser = checkData.user;
+                                await logoutAfterEmailUpdate();
+                                return;
+                            }
+                        }
+                        
+                        throw new Error('Failed to update email: ' + updateError.message);
+                    }
+                    
+                    // Final check after manual update
+                    const { data: finalUserData } = await supabase.auth.getUser();
+                    if (finalUserData?.user?.email === newEmail) {
+                        console.log('Email updated after manual update');
+                        currentUser = finalUserData.user;
+                        $('#email').text(newEmail);
+                        profileData.email = newEmail;
+                        await logoutAfterEmailUpdate();
+                        return;
+                    }
+                    
+                    // If we get here, update optimistically and logout
+                    console.log('Updating UI optimistically and logging out');
+                    $('#email').text(newEmail);
+                    profileData.email = newEmail;
+                    await logoutAfterEmailUpdate();
+                    
+                } catch (error) {
+                    console.error('Email update error:', error);
+                    
+                    let errorMessage = 'Failed to update email. ';
+                    
+                    if (error.message) {
+                        if (error.message.includes('40') || error.message.includes('rate limit') || 
+                            error.message.includes('security purposes')) {
+                            errorMessage = 'Please wait a moment before verifying. For security, there is a 60-second cooldown between email change requests.';
+                        } else if (error.message.includes('expired') || error.message.includes('Expired')) {
+                            errorMessage = 'The verification code has expired. Please request a new code.';
+                        } else if (error.message.includes('Invalid') || error.message.includes('invalid')) {
+                            errorMessage = 'Invalid verification code. Please check the code and try again.';
+                        } else {
+                            errorMessage += error.message;
+                        }
+                    } else {
+                        errorMessage += 'Please try again.';
+                    }
+                    
+                    alert(errorMessage);
+                }
                 
             } else if (currentUpdateField === 'password') {
                 var currentPassword = $('#currentPassword').val();
@@ -1055,6 +1818,12 @@
                 
                 if (!currentPassword || !newPassword || !confirmPassword) {
                     alert('Please fill in all fields.');
+                    return;
+                }
+                
+                // Check if new password is the same as current password
+                if (currentPassword === newPassword) {
+                    alert('New password must be different from your current password.');
                     return;
                 }
                 
@@ -1068,8 +1837,89 @@
                     return;
                 }
                 
-                closeUpdateModal();
-                alert('Password updated successfully!');
+                // Validate password strength
+                if (!/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
+                    alert('Password must contain at least 1 uppercase letter, 1 number, and 1 symbol.');
+                    return;
+                }
+                
+                try {
+                    // Show loading state
+                    var saveBtn = $('.btn-save');
+                    var originalBtnText = saveBtn.html();
+                    saveBtn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Updating...');
+                    
+                    // First, verify the current password by attempting to sign in
+                    console.log('Verifying current password...');
+                    const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
+                        email: currentUser.email,
+                        password: currentPassword
+                    });
+                    
+                    if (verifyError) {
+                        console.error('Current password verification failed:', verifyError);
+                        saveBtn.prop('disabled', false).html(originalBtnText);
+                        
+                        if (verifyError.message && (
+                            verifyError.message.includes('Invalid') || 
+                            verifyError.message.includes('invalid') ||
+                            verifyError.message.includes('credentials') ||
+                            verifyError.message.includes('password')
+                        )) {
+                            throw new Error('Current password is incorrect. Please try again.');
+                        }
+                        throw verifyError;
+                    }
+                    
+                    console.log('Current password verified successfully');
+                    
+                    // Now update to the new password
+                    console.log('Updating password...');
+                    const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+                        password: newPassword
+                    });
+                    
+                    if (updateError) {
+                        console.error('Password update error:', updateError);
+                        saveBtn.prop('disabled', false).html(originalBtnText);
+                        
+                        if (updateError.message && updateError.message.includes('same')) {
+                            throw new Error('New password must be different from your current password.');
+                        }
+                        throw updateError;
+                    }
+                    
+                    console.log('Password updated successfully');
+                    
+                    // Reset button
+                    saveBtn.prop('disabled', false).html(originalBtnText);
+                    
+                    // Log out for security purposes
+                    await logoutAfterPasswordUpdate();
+                    
+                } catch (error) {
+                    console.error('Password update error:', error);
+                    
+                    // Reset button
+                    var saveBtn = $('.btn-save');
+                    if (saveBtn.prop('disabled')) {
+                        saveBtn.prop('disabled', false).html('Update');
+                    }
+                    
+                    let errorMessage = 'Failed to update password. ';
+                    if (error.message) {
+                        if (error.message.includes('incorrect') || error.message.includes('Invalid')) {
+                            errorMessage = error.message;
+                        } else if (error.message.includes('same')) {
+                            errorMessage = 'New password must be different from your current password.';
+                        } else {
+                            errorMessage += error.message;
+                        }
+                    } else {
+                        errorMessage += 'Please try again.';
+                    }
+                    alert(errorMessage);
+                }
                 
             } else if (currentUpdateField === 'phone') {
                 var newPhone = $('#newPhone').val();
@@ -1085,12 +1935,37 @@
                     return;
                 }
                 
-                // Update phone in profile
-                profileData.phone = newPhone;
-                $('#phone').text(newPhone);
-                
-                closeUpdateModal();
-                alert('Phone number updated successfully!');
+                try {
+                    // Update phone in user metadata
+                    const { error: updateError } = await supabase.auth.updateUser({
+                        data: { 
+                            ...currentUser.user_metadata,
+                            phone: newPhone 
+                        }
+                    });
+                    
+                    if (updateError) {
+                        throw updateError;
+                    }
+                    
+                    // Update UI
+                    profileData.phone = newPhone;
+                    if ($('#phone').length) {
+                        $('#phone').text(newPhone);
+                    }
+                    
+                    // Reload user data
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    if (sessionData?.session) {
+                        currentUser = sessionData.session.user;
+                    }
+                    
+                    closeUpdateModal();
+                    alert('Phone number updated successfully!');
+                } catch (error) {
+                    console.error('Phone update error:', error);
+                    alert(error.message || 'Failed to update phone number. Please try again.');
+                }
             }
         }
         
@@ -1103,10 +1978,10 @@
                 return;
             }
             
-            // Validate file size (5MB max)
-            var maxSize = 5 * 1024 * 1024; // 5MB in bytes
+            // Validate file size (10MB max)
+            var maxSize = 10 * 1024 * 1024; // 10MB in bytes
             if (file.size > maxSize) {
-                alert('File size must not exceed 5MB.');
+                alert('File size must not exceed 10MB.');
                 return;
             }
             
@@ -1181,6 +2056,25 @@
                 }
             });
             
+            // Email code input - only allow numbers
+            $('#emailCode').on('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+            
+            // Toggle password visibility
+            $(document).on('click', '.toggle-password', function() {
+                var targetId = $(this).attr('data-target');
+                var passwordInput = $('#' + targetId);
+                
+                if (passwordInput.attr('type') === 'password') {
+                    passwordInput.attr('type', 'text');
+                    $(this).removeClass('fa-eye-slash').addClass('fa-eye');
+                } else {
+                    passwordInput.attr('type', 'password');
+                    $(this).removeClass('fa-eye').addClass('fa-eye-slash');
+                }
+            });
+            
             // Drag and drop functionality
             $('#photoUploadArea').on('dragover', function(e) {
                 e.preventDefault();
@@ -1239,6 +2133,12 @@
         
         // Account Deletion Functions
         function openDeleteModal() {
+            // Check if user has pending penalties
+            if (hasPendingPenalties) {
+                alert('⚠️ Cannot Request Account Deletion\n\nYou have unpaid penalties. Please pay your penalties before requesting account deletion.\n\nYou can view and pay your penalties in the Penalties section.');
+                return;
+            }
+            
             $('#deleteModal').addClass('active');
             $('body').css('overflow', 'hidden');
         }
@@ -1248,17 +2148,61 @@
             $('body').css('overflow', '');
         }
         
-        function confirmDeletion() {
-            // Close the deletion modal
-            closeDeleteModal();
+        async function confirmDeletion() {
+            if (!supabase || !currentUser) {
+                alert('Please wait for the page to load completely.');
+                return;
+            }
             
-            // Show success message
-            alert('Account deletion request submitted successfully!\n\nYour request has been received and will be processed. You will now be logged out.');
+            // Check if user has pending penalties (double check)
+            if (hasPendingPenalties) {
+                alert('⚠️ Cannot Request Account Deletion\n\nYou have unpaid penalties. Please pay your penalties before requesting account deletion.');
+                closeDeleteModal();
+                return;
+            }
             
-            // Redirect to logout page after a short delay
-            setTimeout(function() {
-                window.location.href = 'logout.php';
-            }, 500);
+            try {
+                // Create deletion request via API
+                const response = await fetch('create_deletion_request.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUser.id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to create deletion request');
+                }
+                
+                // Close the deletion modal
+                closeDeleteModal();
+                
+                // Show success message
+                alert('Account deletion request submitted successfully!\n\nYour request has been received and will be processed by an administrator. You will now be logged out.');
+                
+                // Log out from Supabase
+                try {
+                    await supabase.auth.signOut();
+                    console.log('User logged out after deletion request');
+                } catch (logoutError) {
+                    console.error('Logout error:', logoutError);
+                }
+                
+                // Redirect to logout page after a short delay
+                setTimeout(function() {
+                    window.location.href = 'logout.php';
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error creating deletion request:', error);
+                alert('Failed to submit deletion request: ' + (error.message || error));
+                closeDeleteModal();
+            }
         }
         
         // Close deletion modal when clicking outside of it

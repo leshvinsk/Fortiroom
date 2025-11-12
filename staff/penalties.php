@@ -1,3 +1,28 @@
+<?php
+// Minimal .env loader (no external deps). Loads KEY=VALUE pairs into $_ENV.
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(ltrim($line), '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
+            // Remove optional surrounding quotes
+            $len = strlen($value);
+            if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
+                $value = substr($value, 1, $len - 2);
+            }            
+            $_ENV[$key] = $value;
+        }
+    }
+}
+$SUPABASE_URL = $_ENV['SUPABASE_URL'] ?? '';
+$SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -16,6 +41,15 @@
     <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
     <!-- TABLE STYLES-->
     <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <!-- Supabase JS v2 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Injected from server-side env. The anon key is safe to expose client-side.
+        window.__SUPABASE__ = {
+            url: "<?php echo htmlspecialchars($SUPABASE_URL, ENT_QUOTES, 'UTF-8'); ?>",
+            anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
+        };
+    </script>
     <style>
         body::-webkit-scrollbar {
             display: none;
@@ -88,10 +122,6 @@
         .status-paid {
             background-color: #dff0d8;
             color: #3c763d;
-        }
-        .status-waived {
-            background-color: #d9edf7;
-            color: #31708f;
         }
         
         /* Manage Penalty Button */
@@ -625,7 +655,6 @@
                                             <option value="all">All Status</option>
                                             <option value="pending">Pending</option>
                                             <option value="paid">Paid</option>
-                                            <option value="waived">Waived</option>
                                         </select>
                                     </div>
                                     <div>
@@ -657,7 +686,7 @@
                                                 <th>Username</th>
                                                 <th>Pods No.</th>
                                                 <th>Violation Type</th>
-                                                <th>Date & Time</th>
+                                                <th>Cancellation Date & Time</th>
                                                 <th>Penalty Amount</th>
                                                 <th>Status</th>
                                             </tr>
@@ -735,48 +764,471 @@
     <script src="assets/js/dataTables/jquery.dataTables.js"></script>
     <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
-        var dataTable;
+        // Global variables
+        var supabase = null;
+        var currentUser = null;
+        var dataTable = null;
+        var penaltiesData = [];
+        var podsData = [];
+        var penaltyRates = {}; // Store penalty rates: { 'Late Cancellation': 10.00, 'No Show': 25.00, 'Late Checkout': 15.00 }
         
-        // Penalty data - 8 records
-        var penaltiesData = [
-            { username: 'johnsmith', room: 1, violationType: 'Late Checkout', date: '2024-10-20', dateTime: '2024-10-20 11:45 AM', amount: '$15.00', status: 'pending' },
-            { username: 'sarahdavis', room: 3, violationType: 'No Show', date: '2024-10-19', dateTime: '2024-10-19 02:30 PM', amount: '$25.00', status: 'paid' },
-            { username: 'michaelbrown', room: 2, violationType: 'Late Cancellation', date: '2024-10-18', dateTime: '2024-10-18 05:15 PM', amount: '$10.00', status: 'pending' },
-            { username: 'emmajohnson', room: 4, violationType: 'Late Checkout', date: '2024-10-21', dateTime: '2024-10-21 10:30 AM', amount: '$15.00', status: 'waived' },
-            { username: 'davidwilson', room: 1, violationType: 'No Show', date: '2024-10-22', dateTime: '2024-10-22 08:00 PM', amount: '$25.00', status: 'pending' },
-            { username: 'lisaanderson', room: 3, violationType: 'Late Checkout', date: '2024-10-17', dateTime: '2024-10-17 12:20 PM', amount: '$15.00', status: 'paid' },
-            { username: 'jameswalker', room: 2, violationType: 'No Show', date: '2024-10-23', dateTime: '2024-10-23 09:00 AM', amount: '$25.00', status: 'pending' },
-            { username: 'mariagarcia', room: 4, violationType: 'Late Cancellation', date: '2024-10-16', dateTime: '2024-10-16 04:45 PM', amount: '$10.00', status: 'paid' }
-        ];
+        // Initialize Supabase and load data
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Supabase
+            const { createClient } = window.supabase || {};
+            if (!createClient) {
+                console.error('Supabase library failed to load.');
+                alert('Failed to load database connection. Please refresh the page.');
+                return;
+            }
+            supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
+            
+            // Check if user is logged in
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+                // Redirect to login if not authenticated
+                window.location.href = '../login.php';
+                return;
+            }
+            
+            currentUser = sessionData.session.user;
+            
+            // Load pods first (for lookups)
+            await loadPods();
+            
+            // Load penalty rates from database
+            await loadPenaltyRates();
+            
+            // Load penalties from database (which will also load users from Auth API)
+            // This will call populatePenaltiesTable() which will initialize DataTable
+            await loadPenalties();
+            
+            // Attach filter event handlers
+            $('#filterStatus').on('change', function() {
+                applyFilters();
+            });
+            
+            $('#filterDate').on('change', function() {
+                applyFilters();
+            });
+            
+            // Violation type filter
+            $('#filterViolation').on('change', function() {
+                applyFilters();
+            });
+            
+            // Search input - filter as user types
+            $('#searchUsername').on('keyup', function() {
+                applyFilters();
+            });
+        });
+        
+        // Load pods from database
+        async function loadPods() {
+            try {
+                const { data, error } = await supabase
+                    .from('pods')
+                    .select('id, name')
+                    .order('created_at', { ascending: true });
+                
+                if (error) {
+                    console.error('Error loading pods:', error);
+                    podsData = [];
+                    return;
+                }
+                
+                podsData = data || [];
+            } catch (error) {
+                console.error('Error in loadPods:', error);
+                podsData = [];
+            }
+        }
+        
+        // Load penalty rates from database
+        async function loadPenaltyRates() {
+            try {
+                const { data, error } = await supabase
+                    .from('penalty_rates')
+                    .select('violation_type, penalty_amount')
+                    .order('violation_type', { ascending: true });
+                
+                if (error) {
+                    console.error('Error loading penalty rates:', error);
+                    // Set default rates if database query fails
+                    penaltyRates = {
+                        'Late Cancellation': 10.00,
+                        'No Show': 25.00,
+                        'Late Checkout': 15.00
+                    };
+                    return;
+                }
+                
+                // Convert array to object for easy lookup
+                penaltyRates = {};
+                if (data && data.length > 0) {
+                    data.forEach(function(rate) {
+                        penaltyRates[rate.violation_type] = parseFloat(rate.penalty_amount) || 0;
+                    });
+                    console.log('Loaded penalty rates from database:', penaltyRates);
+                } else {
+                    // Set default rates if no rates found
+                    console.log('No penalty rates found in database, using defaults');
+                    penaltyRates = {
+                        'Late Cancellation': 10.00,
+                        'No Show': 25.00,
+                        'Late Checkout': 15.00
+                    };
+                }
+            } catch (error) {
+                console.error('Error in loadPenaltyRates:', error);
+                // Set default rates on error
+                penaltyRates = {
+                    'Late Cancellation': 10.00,
+                    'No Show': 25.00,
+                    'Late Checkout': 15.00
+                };
+            }
+        }
+        
+        // Load penalties from database
+        async function loadPenalties() {
+            try {
+                // Load all penalties (staff can see all penalties)
+                const { data: penalties, error: penaltiesError } = await supabase
+                    .from('penalties')
+                    .select('id, user_id, pod_id, booking_id, violation_type, penalty_amount, status, violation_date, violation_time, receipt_number, paid_at, created_at, updated_at')
+                    .order('violation_date', { ascending: false })
+                    .order('violation_time', { ascending: false });
+                
+                if (penaltiesError) {
+                    console.error('Error loading penalties:', penaltiesError);
+                    console.error('Error details:', JSON.stringify(penaltiesError, null, 2));
+                    
+                    // Check if the error is because table doesn't exist
+                    var errorMsg = penaltiesError.message || penaltiesError.toString() || '';
+                    if (errorMsg.includes('does not exist') || errorMsg.includes('relation') || errorMsg.includes('42P01')) {
+                        console.error('Penalties table does not exist. Please run create_penalties_table.sql in Supabase SQL Editor.');
+                        penaltiesData = [];
+                        populatePenaltiesTable();
+                        return;
+                    } else if (errorMsg.includes('permission') || errorMsg.includes('policy') || errorMsg.includes('RLS') || errorMsg.includes('row-level security')) {
+                        console.error('RLS Policy Error: Staff/Admin may not have permission to view all penalties.');
+                        console.error('Please run create_penalties_rls_policies.sql in Supabase SQL Editor to grant staff/admin access.');
+                        alert('Permission Error: Cannot load penalties. Please ensure RLS policies are configured for staff/admin users.');
+                        penaltiesData = [];
+                        populatePenaltiesTable();
+                        return;
+                    } else {
+                        console.error('Error loading penalties:', penaltiesError);
+                        alert('Error loading penalties: ' + (penaltiesError.message || 'Unknown error'));
+                    }
+                    penaltiesData = [];
+                    populatePenaltiesTable();
+                    return;
+                }
+                
+                console.log('Loaded penalties from database:', penalties ? penalties.length : 0, 'penalties');
+                console.log('Raw penalties response:', penalties);
+                
+                if (!penalties || penalties.length === 0) {
+                    console.log('No penalties found in database');
+                    console.log('This could mean:');
+                    console.log('1. No penalties exist in the database');
+                    console.log('2. RLS policies are blocking access (check if user has admin/staff role)');
+                    console.log('3. User metadata role:', currentUser?.user_metadata?.role);
+                    penaltiesData = [];
+                    populatePenaltiesTable();
+                    return;
+                }
+                
+                // Log first penalty for debugging
+                if (penalties.length > 0) {
+                    console.log('First penalty sample:', JSON.stringify(penalties[0], null, 2));
+                }
+                
+                // Create pods map for quick lookup
+                var podsMap = {};
+                podsData.forEach(function(pod) {
+                    podsMap[pod.id] = pod;
+                });
+                
+                // Extract unique user IDs from penalties
+                var userIds = [...new Set(penalties.map(p => p.user_id).filter(id => id))];
+                var usersMap = {};
+                
+                // Load users from Supabase Auth via PHP endpoint
+                if (userIds.length > 0) {
+                    console.log('Loading users from Auth API for user_ids:', userIds);
+                    try {
+                        const response = await fetch('get_users_info.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ user_ids: userIds })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch users: ' + response.statusText);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        if (data.error) {
+                            console.error('Error loading users:', data.error);
+                            console.warn('Using user_id as fallback for usernames');
+                        } else if (data.errors && data.errors.length > 0) {
+                            console.error('Errors loading users:', data.errors);
+                            console.warn('Some users may not be loaded. Using fallback for missing users.');
+                        }
+                        
+                        if (data.users && Object.keys(data.users).length > 0) {
+                            console.log('Loaded users from Auth API:', Object.keys(data.users).length);
+                            
+                            // data.users is a map of user_id => { id, username, email }
+                            Object.keys(data.users).forEach(userId => {
+                                const user = data.users[userId];
+                                // Use username directly from the response
+                                usersMap[userId] = user.username || (user.email ? user.email.split('@')[0] : 'User ' + userId.substring(0, 8));
+                            });
+                            console.log('Users map created with', Object.keys(usersMap).length, 'users');
+                        } else {
+                            console.warn('No users returned from Auth API');
+                        }
+                    } catch (error) {
+                        console.error('Error fetching users from Auth API:', error);
+                        console.warn('Using user_id as fallback for usernames');
+                    }
+                } else {
+                    console.log('No user IDs to load');
+                }
+                
+                // Map penalties with user and pod data
+                penaltiesData = penalties.map(function(penalty) {
+                    // Get username from usersMap, fallback to user ID if not found
+                    var username = 'Unknown';
+                    if (penalty.user_id) {
+                        if (usersMap[penalty.user_id]) {
+                            username = usersMap[penalty.user_id];
+                        } else {
+                            // Fallback: use first 8 characters of user_id
+                            username = 'User ' + penalty.user_id.substring(0, 8);
+                            console.log('No username found for user_id:', penalty.user_id, '- using fallback:', username);
+                        }
+                    }
+                    
+                    // Get pod information
+                    var pod = penalty.pod_id ? podsMap[penalty.pod_id] : null;
+                    var podName = pod ? (pod.name || 'Pod ' + pod.id.substring(0, 8)) : 'N/A';
+                    var podId = penalty.pod_id || 'N/A';
+                    
+                    // Format date and time
+                    var dateStr = penalty.violation_date || '';
+                    var timeStr = penalty.violation_time || '';
+                    var dateTimeStr = '';
+                    
+                    if (dateStr) {
+                        var date = new Date(dateStr + (timeStr ? 'T' + timeStr : ''));
+                        if (!isNaN(date.getTime())) {
+                            var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            var formattedDate = date.getDate() + ' ' + monthNames[date.getMonth()] + ' ' + date.getFullYear();
+                            
+                            if (timeStr) {
+                                var hours = date.getHours();
+                                var minutes = date.getMinutes();
+                                var period = hours >= 12 ? 'PM' : 'AM';
+                                var hours12 = hours % 12 || 12;
+                                var formattedTime = hours12 + ':' + (minutes < 10 ? '0' : '') + minutes + ' ' + period;
+                                dateTimeStr = formattedDate + ' ' + formattedTime;
+                            } else {
+                                dateTimeStr = formattedDate;
+                            }
+                        } else {
+                            dateTimeStr = dateStr + (timeStr ? ' ' + timeStr : '');
+                        }
+                    }
+                    
+                    // Format penalty amount
+                    var amountStr = '$' + parseFloat(penalty.penalty_amount || 0).toFixed(2);
+                    
+                    // Format paid_at date if available
+                    var paidAtStr = '';
+                    if (penalty.paid_at) {
+                        var paidDate = new Date(penalty.paid_at);
+                        if (!isNaN(paidDate.getTime())) {
+                            var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            paidAtStr = paidDate.getDate() + ' ' + monthNames[paidDate.getMonth()] + ' ' + paidDate.getFullYear();
+                            var hours = paidDate.getHours();
+                            var minutes = paidDate.getMinutes();
+                            var period = hours >= 12 ? 'PM' : 'AM';
+                            var hours12 = hours % 12 || 12;
+                            paidAtStr += ' ' + hours12 + ':' + (minutes < 10 ? '0' : '') + minutes + ' ' + period;
+                        }
+                    }
+                    
+                    return {
+                        id: penalty.id,
+                        username: username,
+                        room: podId,
+                        roomName: podName,
+                        violationType: penalty.violation_type || '',
+                        date: dateStr,
+                        dateTime: dateTimeStr,
+                        amount: amountStr,
+                        status: penalty.status || 'pending',
+                        userId: penalty.user_id,
+                        podId: penalty.pod_id,
+                        bookingId: penalty.booking_id,
+                        receiptNumber: penalty.receipt_number || '',
+                        paidAt: paidAtStr,
+                        createdAt: penalty.created_at || '',
+                        updatedAt: penalty.updated_at || ''
+                    };
+                });
+                
+                // Sort penalties: pending first, then by date (newest first)
+                penaltiesData.sort(function(a, b) {
+                    if (a.status === 'pending' && b.status !== 'pending') {
+                        return -1;
+                    }
+                    if (a.status !== 'pending' && b.status === 'pending') {
+                        return 1;
+                    }
+                    // If same status, sort by date (newest first)
+                    return b.date.localeCompare(a.date);
+                });
+                
+                console.log('Processed', penaltiesData.length, 'penalties');
+                console.log('Sample processed penalty:', penaltiesData.length > 0 ? JSON.stringify(penaltiesData[0], null, 2) : 'none');
+                
+                // Populate table with loaded data
+                populatePenaltiesTable();
+                
+                // Ensure all rows are visible after loading
+                setTimeout(function() {
+                    $('#penaltiesTableBody tr').show();
+                    $('#noResultsBody').hide();
+                    console.log('Ensured all', $('#penaltiesTableBody tr').length, 'penalty rows are visible');
+                }, 200);
+            } catch (error) {
+                console.error('Error in loadPenalties:', error);
+                penaltiesData = [];
+                populatePenaltiesTable();
+            }
+        }
+        
+        // Initialize DataTable
+        function initializeDataTable() {
+            // Destroy existing DataTable if it exists
+            if (dataTable) {
+                try {
+                    dataTable.fnDestroy();
+                    dataTable = null;
+                } catch (e) {
+                    console.log('DataTable was not initialized, skipping destroy');
+                }
+            }
+            
+            // Check if table has data rows (not just "no results" message)
+            var tbody = $('#penaltiesTableBody');
+            var rows = tbody.find('tr');
+            var hasDataRows = rows.length > 0 && !rows.first().find('td[colspan]').length;
+            
+            if (!hasDataRows) {
+                console.log('No data rows to initialize DataTable with');
+                return;
+            }
+            
+            // Ensure all rows are visible before initializing DataTable
+            rows.show();
+            
+            // Initialize DataTable with a small delay to ensure DOM is ready
+            setTimeout(function() {
+                try {
+                    // Make sure all rows are still visible
+                    $('#penaltiesTableBody tr').show();
+                    
+                    dataTable = $('#dataTables-example').dataTable({
+                        "order": [[ 3, "desc" ]],  // Sort by date & time (column index 3) - newest first
+                        "paging": false,  // Disable pagination - show all records
+                        "searching": false,  // Disable search box (we use custom filters)
+                        "info": false,  // Hide "Showing X to Y of Z entries" text
+                        "autoWidth": false,
+                        "columnDefs": [
+                            { "orderable": true, "targets": [0, 1, 2, 3, 4, 5] }
+                        ]
+                    });
+                    
+                    // After initialization, ensure all rows are visible
+                    $('#penaltiesTableBody tr').show();
+                    $('#noResultsBody').hide();
+                    
+                    console.log('DataTable initialized successfully with', rows.length, 'rows');
+                } catch (e) {
+                    console.error('Error initializing DataTable:', e);
+                }
+            }, 150);
+        }
         
         function populatePenaltiesTable() {
             var tbody = $('#penaltiesTableBody');
             tbody.empty();
             
+            if (penaltiesData.length === 0) {
+                // Show "no results" message if no penalties
+                $('#noResultsBody').show();
+                // Destroy DataTable if it exists
+                if (dataTable) {
+                    try {
+                        dataTable.fnDestroy();
+                        dataTable = null;
+                    } catch (e) {
+                        console.log('Error destroying DataTable:', e);
+                    }
+                }
+                return;
+            }
+            
+            $('#noResultsBody').hide();
+            
             penaltiesData.forEach(function(penalty) {
                 var statusClass = 'status-' + penalty.status;
                 var statusText = penalty.status.charAt(0).toUpperCase() + penalty.status.slice(1);
                 
-                var row = '<tr data-status="' + penalty.status + '" data-date="' + penalty.date + 
-                    '" data-violation="' + penalty.violationType + '">' +
-                    '<td>' + penalty.username + '</td>' +
-                    '<td>' + penalty.room + '</td>' +
-                    '<td>' + penalty.violationType + '</td>' +
-                    '<td>' + penalty.dateTime + '</td>' +
-                    '<td>' + penalty.amount + '</td>' +
-                    '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
+                // Escape HTML to prevent XSS
+                var escapeHtml = function(text) {
+                    var map = {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    };
+                    return (text || '').toString().replace(/[&<>"']/g, function(m) { return map[m]; });
+                };
+                
+                var row = '<tr data-status="' + escapeHtml(penalty.status) + '" data-date="' + escapeHtml(penalty.date) + 
+                    '" data-violation="' + escapeHtml(penalty.violationType) + '" data-username="' + escapeHtml(penalty.username.toLowerCase()) + '">' +
+                    '<td>' + escapeHtml(penalty.username) + '</td>' +
+                    '<td>' + escapeHtml(penalty.roomName) + '</td>' +
+                    '<td>' + escapeHtml(penalty.violationType) + '</td>' +
+                    '<td>' + escapeHtml(penalty.dateTime) + '</td>' +
+                    '<td>' + escapeHtml(penalty.amount) + '</td>' +
+                    '<td><span class="status-badge ' + statusClass + '">' + escapeHtml(statusText) + '</span></td>' +
                     '</tr>';
                 
                 tbody.append(row);
             });
+            
+            console.log('Populated table with', penaltiesData.length, 'penalty records');
+            
+            // Reinitialize DataTable after populating
+            initializeDataTable();
         }
         
         function applyFilters() {
-            if (!dataTable) {
-                console.log('DataTable not initialized yet');
-                return;
-            }
-            
             var statusFilter = $('#filterStatus').val();
             var dateFilter = $('#filterDate').val();
             var violationFilter = $('#filterViolation').val();
@@ -784,8 +1236,23 @@
             
             console.log('FILTERING - Status:', statusFilter, '| Date:', dateFilter, '| Violation:', violationFilter, '| Search:', searchText);
             
+            // If DataTable is initialized, destroy it temporarily to apply manual filters
+            var wasDataTableActive = false;
+            if (dataTable) {
+                try {
+                    dataTable.fnDestroy();
+                    wasDataTableActive = true;
+                    dataTable = null;
+                } catch (e) {
+                    console.log('Error destroying DataTable for filtering:', e);
+                }
+            }
+            
             // Show all rows first
             $('#penaltiesTableBody tr').show();
+            
+            var totalRows = $('#penaltiesTableBody tr').length;
+            console.log('Total rows before filtering:', totalRows);
             
             // Apply status filter
             if (statusFilter !== 'all') {
@@ -832,10 +1299,17 @@
             console.log('Results:', visibleCount, 'rows shown,', hiddenCount, 'rows hidden');
             
             // Show/hide "no results" message
-            if (visibleCount === 0) {
+            if (visibleCount === 0 && totalRows > 0) {
                 $('#noResultsBody').show();
             } else {
                 $('#noResultsBody').hide();
+            }
+            
+            // Reinitialize DataTable if it was active and we have visible rows
+            if (wasDataTableActive && visibleCount > 0) {
+                setTimeout(function() {
+                    initializeDataTable();
+                }, 100);
             }
         }
         
@@ -846,11 +1320,29 @@
             $('#filterViolation').val('all');
             $('#searchUsername').val('');
             
+            // Destroy DataTable if it exists
+            if (dataTable) {
+                try {
+                    dataTable.fnDestroy();
+                    dataTable = null;
+                } catch (e) {
+                    console.log('Error destroying DataTable on reset:', e);
+                }
+            }
+            
             // Show all rows and hide no results message
             $('#penaltiesTableBody tr').show();
             $('#noResultsBody').hide();
             
-            console.log('Filters reset - showing all rows');
+            var visibleCount = $('#penaltiesTableBody tr:visible').length;
+            console.log('Filters reset - showing all', visibleCount, 'rows');
+            
+            // Reinitialize DataTable after reset
+            if (visibleCount > 0) {
+                setTimeout(function() {
+                    initializeDataTable();
+                }, 100);
+            }
         }
         
         // Force reset sidebar state on page load and browser back/forward
@@ -878,35 +1370,7 @@
                 Notification.requestPermission();
             }
             
-            // Populate table with penalties
-            populatePenaltiesTable();
-            
-            // Initialize DataTable - no pagination, search, or info
-            dataTable = $('#dataTables-example').dataTable({
-                "order": [[ 3, "desc" ]],  // Sort by date & time (column index 3) - newest first
-                "paging": false,  // Disable pagination - show all records
-                "searching": false,  // Disable search box
-                "info": false  // Hide "Showing X to Y of Z entries" text
-            });
-            
-            // Attach filter event handlers
-            $('#filterStatus').on('change', function() {
-                applyFilters();
-            });
-            
-            $('#filterDate').on('change', function() {
-                applyFilters();
-            });
-            
-            // Violation type filter
-            $('#filterViolation').on('change', function() {
-                applyFilters();
-            });
-            
-            // Search input - filter as user types
-            $('#searchUsername').on('keyup', function() {
-                applyFilters();
-            });
+            // Note: DataTable will be initialized after penalties are loaded in loadPenalties()
             
             // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {
@@ -953,7 +1417,15 @@
         });
         
         // Penalty Rate Management Functions
-        function openPenaltyModal() {
+        async function openPenaltyModal() {
+            // Load current penalty rates from database
+            await loadPenaltyRates();
+            
+            // Populate form fields with current rates
+            $('#lateCancellationRate').val(penaltyRates['Late Cancellation'] || '');
+            $('#noShowRate').val(penaltyRates['No Show'] || '');
+            $('#lateCheckoutRate').val(penaltyRates['Late Checkout'] || '');
+            
             $('#penaltyModal').addClass('active');
             // Prevent body scroll when modal is open
             $('body').css('overflow', 'hidden');
@@ -961,18 +1433,15 @@
         
         function closePenaltyModal() {
             $('#penaltyModal').removeClass('active');
-            // Reset form fields
-            $('#lateCancellationRate').val('');
-            $('#noShowRate').val('');
-            $('#lateCheckoutRate').val('');
+            // Don't reset form fields - keep them for next time
             // Restore body scroll
             $('body').css('overflow', '');
         }
         
-        function setPenaltyRates() {
-            var lateCancellation = $('#lateCancellationRate').val();
-            var noShow = $('#noShowRate').val();
-            var lateCheckout = $('#lateCheckoutRate').val();
+        async function setPenaltyRates() {
+            var lateCancellation = $('#lateCancellationRate').val().trim();
+            var noShow = $('#noShowRate').val().trim();
+            var lateCheckout = $('#lateCheckoutRate').val().trim();
             
             // Check if at least one field is filled
             if (!lateCancellation && !noShow && !lateCheckout) {
@@ -980,8 +1449,96 @@
                 return;
             }
             
-            // Close the modal
-            closePenaltyModal();
+            // Validate that all filled rates are valid numbers
+            var ratesToUpdate = [];
+            
+            if (lateCancellation) {
+                var lateCancellationNum = parseFloat(lateCancellation);
+                if (isNaN(lateCancellationNum) || lateCancellationNum < 0) {
+                    alert('Invalid penalty amount for Late Cancellation. Please enter a valid number >= 0.');
+                    return;
+                }
+                ratesToUpdate.push({
+                    violation_type: 'Late Cancellation',
+                    penalty_amount: lateCancellationNum
+                });
+            }
+            
+            if (noShow) {
+                var noShowNum = parseFloat(noShow);
+                if (isNaN(noShowNum) || noShowNum < 0) {
+                    alert('Invalid penalty amount for No Show. Please enter a valid number >= 0.');
+                    return;
+                }
+                ratesToUpdate.push({
+                    violation_type: 'No Show',
+                    penalty_amount: noShowNum
+                });
+            }
+            
+            if (lateCheckout) {
+                var lateCheckoutNum = parseFloat(lateCheckout);
+                if (isNaN(lateCheckoutNum) || lateCheckoutNum < 0) {
+                    alert('Invalid penalty amount for Late Checkout. Please enter a valid number >= 0.');
+                    return;
+                }
+                ratesToUpdate.push({
+                    violation_type: 'Late Checkout',
+                    penalty_amount: lateCheckoutNum
+                });
+            }
+            
+            if (ratesToUpdate.length === 0) {
+                alert('Please enter at least one valid penalty rate to update.');
+                return;
+            }
+            
+            // Show loading indicator
+            var setButton = $('.btn-set-penalty');
+            var originalText = setButton.text();
+            setButton.prop('disabled', true).text('Saving...');
+            
+            try {
+                // Send update request to PHP endpoint
+                const response = await fetch('update_penalty_rates.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        rates: ratesToUpdate,
+                        user_id: currentUser ? currentUser.id : null
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Failed to update penalty rates');
+                }
+                
+                // Reload penalty rates from database to get the latest values
+                await loadPenaltyRates();
+                
+                console.log('Penalty rates updated successfully:', result);
+                console.log('Updated penalty rates:', penaltyRates);
+                
+                // Close the modal
+                closePenaltyModal();
+                
+                // Show success notification
+                showPenaltyRateUpdateNotification();
+                
+            } catch (error) {
+                console.error('Error updating penalty rates:', error);
+                alert('Error updating penalty rates: ' + (error.message || 'Unknown error') + '\n\nPlease try again.');
+            } finally {
+                // Restore button state
+                setButton.prop('disabled', false).text(originalText);
+            }
+        }
+        
+        function showPenaltyRateUpdateNotification() {
             
             // Show browser notification
             if ("Notification" in window) {
@@ -1042,13 +1599,6 @@
                 console.log('Browser does not support notifications');
                 alert('Penalty Rates Updated!\n\nAll users will be informed about the new charges. Only new penalties will apply the updated rates.');
             }
-            
-            // Here you would typically make an AJAX call to save the rates to the database
-            console.log('Penalty rates updated:', {
-                lateCancellation: lateCancellation || 'No change',
-                noShow: noShow || 'No change',
-                lateCheckout: lateCheckout || 'No change'
-            });
         }
         
         // Close modal when clicking outside of it

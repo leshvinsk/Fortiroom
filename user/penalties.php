@@ -1,3 +1,28 @@
+<?php
+// Minimal .env loader (no external deps). Loads KEY=VALUE pairs into $_ENV.
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(ltrim($line), '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
+            // Remove optional surrounding quotes
+            $len = strlen($value);
+            if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
+                $value = substr($value, 1, $len - 2);
+            }            
+            $_ENV[$key] = $value;
+        }
+    }
+}
+$SUPABASE_URL = $_ENV['SUPABASE_URL'] ?? '';
+$SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -16,6 +41,17 @@
     <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
     <!-- TABLE STYLES-->
     <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <!-- Supabase JS v2 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Stripe.js -->
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        // Injected from server-side env. The anon key is safe to expose client-side.
+        window.__SUPABASE__ = {
+            url: "<?php echo htmlspecialchars($SUPABASE_URL, ENT_QUOTES, 'UTF-8'); ?>",
+            anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
+        };
+    </script>
     <style>
         body::-webkit-scrollbar {
             display: none;
@@ -1026,7 +1062,6 @@
                                             <option value="all">All Status</option>
                                             <option value="pending">Pending</option>
                                             <option value="paid">Paid</option>
-                                            <option value="waived">Waived</option>
                                         </select>
                                     </div>
                                     <div>
@@ -1188,18 +1223,261 @@
     <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
         var dataTable;
+        var supabase = null;
+        var currentUser = null;
+        var penaltiesData = [];
+        var podsData = [];
         
-        // Penalty data - 3 records (user's penalties only)
-        // Ordered by: 1) Status (pending first), 2) Date (earliest to latest)
-        var penaltiesData = [
-            { room: 1, violationType: 'Late Checkout', date: '2025-10-20', dateTime: '2025-10-20 11:45 AM', amount: '$15.00', status: 'pending', statusOrder: 1 },
-            { room: 2, violationType: 'Late Cancellation', date: '2025-10-18', dateTime: '2025-10-18 05:15 PM', amount: '$10.00', status: 'paid', statusOrder: 2 },
-            { room: 3, violationType: 'No Show', date: '2025-10-22', dateTime: '2025-10-22 02:30 PM', amount: '$25.00', status: 'paid', statusOrder: 2 }
-        ];
+        // Initialize Supabase and load data
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Supabase
+            const { createClient } = window.supabase || {};
+            if (!createClient) {
+                console.error('Supabase library failed to load.');
+                alert('Failed to load database connection. Please refresh the page.');
+                return;
+            }
+            supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
+            
+            // Check if user is logged in
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+                // Redirect to login if not authenticated
+                window.location.href = '../login.php';
+                return;
+            }
+            
+            currentUser = sessionData.session.user;
+            
+            // Load pods first (for pod name lookup)
+            await loadPods();
+            
+            // Load penalties from database
+            await loadPenalties();
+            
+            // Populate table
+            populatePenaltiesTable();
+            
+            // Initialize DataTable
+            dataTable = $('#dataTables-example').dataTable({
+                "order": [],  // No default sorting - maintain manual order (pending first, then by date)
+                "paging": false,  // Disable pagination - show all records
+                "searching": false,  // Disable search box
+                "info": false  // Hide "Showing X to Y of Z entries" text
+            });
+            
+            // Check for payment success/error messages from URL (after data is loaded)
+            const urlParams = new URLSearchParams(window.location.search);
+            const paymentStatus = urlParams.get('payment');
+            const penaltyId = urlParams.get('penalty_id');
+            
+            if (paymentStatus === 'success') {
+                // Reload penalties to show updated status
+                await loadPenalties();
+                
+                // Destroy DataTable first
+                if (dataTable) {
+                    dataTable.fnDestroy();
+                    dataTable = null;
+                }
+                
+                // Re-populate the table with updated data
+                populatePenaltiesTable();
+                
+                // Reinitialize DataTable
+                dataTable = $('#dataTables-example').dataTable({
+                    "order": [],
+                    "paging": false,
+                    "searching": false,
+                    "info": false
+                });
+                
+                alert('Payment successful! Your penalty has been paid.');
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else if (paymentStatus === 'error') {
+                const errorMsg = urlParams.get('message') || 'Payment failed';
+                alert('Payment Error: ' + decodeURIComponent(errorMsg));
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            
+            // Attach filter event handlers
+            $('#filterStatus').on('change', function() {
+                applyFilters();
+            });
+            
+            $('#filterDate').on('change', function() {
+                applyFilters();
+            });
+            
+            // Violation type filter
+            $('#filterViolation').on('change', function() {
+                applyFilters();
+            });
+        });
+        
+        // Load pods from database
+        async function loadPods() {
+            try {
+                const { data, error } = await supabase
+                    .from('pods')
+                    .select('id, name')
+                    .order('created_at', { ascending: true });
+                
+                if (error) {
+                    console.error('Error loading pods:', error);
+                    podsData = [];
+                    return;
+                }
+                
+                podsData = data || [];
+            } catch (error) {
+                console.error('Error in loadPods:', error);
+                podsData = [];
+            }
+        }
+        
+        // Load penalties from database
+        async function loadPenalties() {
+            if (!currentUser || !supabase) {
+                console.error('User not authenticated or Supabase not initialized');
+                return;
+            }
+            
+            try {
+                // Load all penalties for the current user
+                const { data: penalties, error: penaltiesError } = await supabase
+                    .from('penalties')
+                    .select('id, booking_id, pod_id, violation_type, penalty_amount, status, violation_date, violation_time, receipt_number, paid_at')
+                    .eq('user_id', currentUser.id)
+                    .order('status', { ascending: true }) // pending first
+                    .order('violation_date', { ascending: false }) // newest first
+                    .order('violation_time', { ascending: false });
+                
+                if (penaltiesError) {
+                    console.error('Error loading penalties:', penaltiesError);
+                    // Check if the error is because table doesn't exist
+                    var errorMsg = penaltiesError.message || penaltiesError.toString() || '';
+                    if (errorMsg.includes('does not exist') || errorMsg.includes('relation') || errorMsg.includes('42P01')) {
+                        console.error('Penalties table does not exist. Please run create_penalties_table.sql in Supabase SQL Editor.');
+                        penaltiesData = [];
+                        populatePenaltiesTable();
+                        return;
+                    } else {
+                        console.error('Error loading penalties:', penaltiesError);
+                    }
+                    penaltiesData = [];
+                    populatePenaltiesTable();
+                    return;
+                }
+                
+                if (!penalties || penalties.length === 0) {
+                    penaltiesData = [];
+                    populatePenaltiesTable();
+                    return;
+                }
+                
+                // Map penalties with pod data
+                penaltiesData = penalties.map(penalty => {
+                    var pod = podsData.find(p => p.id === penalty.pod_id);
+                    var podName = pod ? (pod.name || 'Pod ' + pod.id) : (penalty.pod_id ? 'Pod ' + penalty.pod_id : 'N/A');
+                    // Extract pod number from pod name (e.g., "Pod 1" -> "1", "Pod 5" -> "5")
+                    var podNumber = 'N/A';
+                    if (pod && pod.name) {
+                        // Try to extract number from pod name
+                        var match = pod.name.match(/(\d+)/);
+                        if (match) {
+                            podNumber = match[1];
+                        } else {
+                            podNumber = pod.name;
+                        }
+                    } else if (penalty.pod_id) {
+                        // If no pod name, try to use pod ID (last few characters for display)
+                        podNumber = String(penalty.pod_id).substring(0, 8);
+                    }
+                    
+                    // Format violation date and time
+                    var violationDate = penalty.violation_date;
+                    var violationTime = '';
+                    if (penalty.violation_time) {
+                        if (typeof penalty.violation_time === 'string') {
+                            // Extract HH:MM from time string
+                            violationTime = penalty.violation_time.substring(0, 5);
+                        } else {
+                            violationTime = penalty.violation_time;
+                        }
+                    }
+                    
+                    // Format date and time for display
+                    var dateTime = '';
+                    if (violationDate) {
+                        var dateObj = new Date(violationDate + 'T00:00:00');
+                        var formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                        if (violationTime) {
+                            // Convert 24-hour time to 12-hour format
+                            var timeParts = violationTime.split(':');
+                            var hour = parseInt(timeParts[0]);
+                            var minute = timeParts[1];
+                            var period = hour >= 12 ? 'PM' : 'AM';
+                            var hour12 = hour % 12 || 12;
+                            var formattedTime = hour12 + ':' + minute + ' ' + period;
+                            dateTime = formattedDate + ' ' + formattedTime;
+                        } else {
+                            dateTime = formattedDate;
+                        }
+                    }
+                    
+                    // Format penalty amount
+                    var amount = '$' + parseFloat(penalty.penalty_amount).toFixed(2);
+                    
+                    // Determine status order (pending = 1, paid = 2)
+                    var statusOrder = penalty.status === 'pending' ? 1 : 2;
+                    
+                    return {
+                        id: penalty.id,
+                        room: podNumber,
+                        roomName: podName,
+                        violationType: penalty.violation_type,
+                        date: violationDate,
+                        dateTime: dateTime,
+                        amount: amount,
+                        status: penalty.status,
+                        statusOrder: statusOrder,
+                        receiptNumber: penalty.receipt_number || null,
+                        paidAt: penalty.paid_at || null
+                    };
+                });
+                
+                // Sort penalties: pending first, then by date (earliest to latest)
+                penaltiesData.sort(function(a, b) {
+                    if (a.statusOrder !== b.statusOrder) {
+                        return a.statusOrder - b.statusOrder;
+                    }
+                    // If same status, sort by date (earliest first)
+                    return a.date.localeCompare(b.date);
+                });
+                
+                // Populate table with loaded data
+                populatePenaltiesTable();
+            } catch (error) {
+                console.error('Error in loadPenalties:', error);
+                penaltiesData = [];
+                populatePenaltiesTable();
+            }
+        }
         
         function populatePenaltiesTable() {
             var tbody = $('#penaltiesTableBody');
             tbody.empty();
+            
+            if (penaltiesData.length === 0) {
+                // Show "no results" message if no penalties
+                $('#noResultsBody').show();
+                return;
+            }
+            
+            $('#noResultsBody').hide();
             
             penaltiesData.forEach(function(penalty) {
                 var statusClass = 'status-' + penalty.status;
@@ -1208,9 +1486,9 @@
                 // Determine action button based on status
                 var actionButton = '';
                 if (penalty.status === 'pending') {
-                    actionButton = '<button class="btn-pay-now" onclick="payNow(' + penalty.room + ', \'' + penalty.violationType + '\')"><i class="fa fa-credit-card"></i> Pay Now</button>';
-                } else if (penalty.status === 'paid' || penalty.status === 'waived') {
-                    actionButton = '<button class="btn-view-receipt" onclick="viewReceipt(' + penalty.room + ', \'' + penalty.violationType + '\')"><i class="fa fa-file-text-o"></i> View Receipt</button>';
+                    actionButton = '<button class="btn-pay-now" onclick="payNow(\'' + penalty.id + '\', \'' + penalty.violationType.replace(/'/g, "\\'") + '\')"><i class="fa fa-credit-card"></i> Pay Now</button>';
+                } else if (penalty.status === 'paid') {
+                    actionButton = '<button class="btn-view-receipt" onclick="viewReceipt(\'' + penalty.id + '\')"><i class="fa fa-file-text-o"></i> View Receipt</button>';
                 }
                 
                 var row = '<tr data-status="' + penalty.status + '" data-date="' + penalty.date + 
@@ -1321,31 +1599,6 @@
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission();
             }
-            
-            // Populate table with penalties
-            populatePenaltiesTable();
-            
-            // Initialize DataTable - no pagination, search, or info
-            dataTable = $('#dataTables-example').dataTable({
-                "order": [],  // No default sorting - maintain manual order (pending first, then by date)
-                "paging": false,  // Disable pagination - show all records
-                "searching": false,  // Disable search box
-                "info": false  // Hide "Showing X to Y of Z entries" text
-            });
-            
-            // Attach filter event handlers
-            $('#filterStatus').on('change', function() {
-                applyFilters();
-            });
-            
-            $('#filterDate').on('change', function() {
-                applyFilters();
-            });
-            
-            // Violation type filter
-            $('#filterViolation').on('change', function() {
-                applyFilters();
-            });
             
             // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {
@@ -1505,51 +1758,86 @@
         });
         
         // Action Button Functions
-        function payNow(room, violationType) {
-            // Show payment processing message
-            if (confirm('Payment processing for:\nPod: ' + room + '\nViolation: ' + violationType + '\n\nRedirecting to payment gateway...\n\nClick OK to proceed with payment.')) {
-                // Show loading overlay
-                $('#paymentProcessing').addClass('active');
-                $('body').css('overflow', 'hidden');
+        async function payNow(penaltyId, violationType) {
+            if (!supabase || !currentUser) {
+                alert('Please wait for the page to load completely.');
+                return;
+            }
+            
+            // Find the penalty
+            var penalty = penaltiesData.find(function(p) {
+                return p.id === penaltyId;
+            });
+            
+            if (!penalty) {
+                alert('Penalty not found.');
+                return;
+            }
+            
+            // Extract amount from penalty (remove $ sign and parse)
+            var amount = parseFloat(penalty.amount.replace('$', '').replace(',', ''));
+            
+            // Show payment confirmation
+            if (!confirm('Proceed to payment?\n\nPod: ' + penalty.room + '\nViolation: ' + violationType + '\nAmount: ' + penalty.amount + '\n\nYou will be redirected to Stripe to complete the payment.')) {
+                return;
+            }
+            
+            // Show loading overlay
+            $('#paymentProcessing').addClass('active');
+            $('body').css('overflow', 'hidden');
+            
+            try {
+                // Create Stripe Checkout session via backend
+                const response = await fetch('create_stripe_session.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        penalty_id: penaltyId,
+                        amount: amount,
+                        user_id: currentUser.id,
+                        violation_type: violationType,
+                        pod_number: penalty.room
+                    })
+                });
                 
-                // Simulate payment processing delay
-                setTimeout(function() {
-                    // Update the penalty status in the data
-                    var penalty = penaltiesData.find(function(p) {
-                        return p.room === room && p.violationType === violationType;
-                    });
-                    
-                    if (penalty) {
-                        // Update status to paid
-                        penalty.status = 'paid';
-                        penalty.statusOrder = 2;
-                        
-                        // Re-populate the table with updated data
-                        populatePenaltiesTable();
-                        
-                        // Hide loading overlay
-                        $('#paymentProcessing').removeClass('active');
-                        $('body').css('overflow', '');
-                        
-                        // Show success message
-                        alert('Payment Successful!\n\nPenalty has been paid.\nYou can now view your receipt.');
-                        
-                        // Here you would typically make an AJAX call to update the database
-                        // $.ajax({ url: 'update_penalty.php', method: 'POST', data: { room: room, type: violationType, status: 'paid' } });
-                    } else {
-                        // Hide loading overlay if penalty not found
-                        $('#paymentProcessing').removeClass('active');
-                        $('body').css('overflow', '');
-                        alert('Error: Penalty not found.');
-                    }
-                }, 2000); // 2 second delay to simulate payment processing
+                const data = await response.json();
+                
+                // Hide loading overlay
+                $('#paymentProcessing').removeClass('active');
+                $('body').css('overflow', '');
+                
+                if (!response.ok || !data.success) {
+                    var errorMsg = data.error || data.message || 'Failed to create payment session';
+                    alert('Payment Error: ' + errorMsg);
+                    return;
+                }
+                
+                // Redirect to Stripe Checkout
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert('Payment session created but no redirect URL received.');
+                }
+            } catch (error) {
+                console.error('Error in payNow:', error);
+                // Hide loading overlay
+                $('#paymentProcessing').removeClass('active');
+                $('body').css('overflow', '');
+                alert('An error occurred while processing payment. Please try again.\n\nError: ' + error.message);
             }
         }
         
-        function viewReceipt(room, violationType) {
+        function viewReceipt(penaltyId) {
+            if (!supabase || !currentUser) {
+                alert('Please wait for the page to load completely.');
+                return;
+            }
+            
             // Find the penalty data for this receipt
             var penalty = penaltiesData.find(function(p) {
-                return p.room === room && p.violationType === violationType;
+                return p.id === penaltyId;
             });
             
             if (!penalty) {
@@ -1568,17 +1856,17 @@
             // Remove any child elements that might have been added
             $('#receiptStatus').children().remove();
             
-            // Generate a receipt number (in real app, this would come from database)
-            var receiptNumber = 'RCP-' + penalty.date.replace(/-/g, '') + '-' + room;
+            // Use receipt number from database if available, otherwise generate one
+            var receiptNumber = penalty.receiptNumber || ('RCP-' + penalty.date.replace(/-/g, '') + '-' + penalty.room.replace(/\s/g, ''));
             
             // Populate receipt data
             $('#receiptNo').text(receiptNumber);
             $('#receiptDateTime').text(penalty.dateTime);
-            $('#receiptPod').text('Pod ' + penalty.room);
+            $('#receiptPod').text(penalty.roomName || 'Pod ' + penalty.room);
             $('#receiptViolation').text(penalty.violationType);
             
             // Set status with badge - clear first, then set
-            var statusBadgeClass = penalty.status === 'paid' ? 'paid' : 'waived';
+            var statusBadgeClass = penalty.status === 'paid' ? 'paid' : 'pending';
             var statusText = penalty.status.charAt(0).toUpperCase() + penalty.status.slice(1);
             var statusBadge = '<span class="receipt-badge ' + statusBadgeClass + '">' + statusText + '</span>';
             $('#receiptStatus').html(statusBadge);

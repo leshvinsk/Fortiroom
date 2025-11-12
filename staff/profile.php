@@ -1,3 +1,28 @@
+<?php
+// Minimal .env loader (no external deps). Loads KEY=VALUE pairs into $_ENV.
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(ltrim($line), '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
+            // Remove optional surrounding quotes
+            $len = strlen($value);
+            if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
+                $value = substr($value, 1, $len - 2);
+            }            
+            $_ENV[$key] = $value;
+        }
+    }
+}
+$SUPABASE_URL = $_ENV['SUPABASE_URL'] ?? '';
+$SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -16,6 +41,15 @@
     <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
     <!-- TABLE STYLES-->
     <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <!-- Supabase JS v2 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Injected from server-side env. The anon key is safe to expose client-side.
+        window.__SUPABASE__ = {
+            url: "<?php echo htmlspecialchars($SUPABASE_URL, ENT_QUOTES, 'UTF-8'); ?>",
+            anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
+        };
+    </script>
     <style>
         body::-webkit-scrollbar {
             display: none;
@@ -241,6 +275,7 @@
         .update-form input {
             width: 100%;
             padding: 12px 16px;
+            padding-right: 45px;
             border: 1px solid #dee2e6;
             border-radius: 8px;
             font-size: 14px;
@@ -257,6 +292,25 @@
         .update-form input::placeholder {
             color: #adb5bd;
             font-weight: 400;
+        }
+        
+        .form-group-update {
+            position: relative;
+        }
+        
+        .toggle-password {
+            position: absolute;
+            right: 16px;
+            bottom: 12px;
+            cursor: pointer;
+            color: #6c757d;
+            font-size: 16px;
+            transition: color 0.2s;
+            z-index: 10;
+        }
+        
+        .toggle-password:hover {
+            color: #3F729B;
         }
         
         .update-modal-footer {
@@ -504,6 +558,7 @@
             body {
                 background-color: #f5f5f5 !important;
             }
+            
         }
     </style>
 </head>
@@ -580,7 +635,7 @@
                                 </div>
                                 <div class="field-content">
                                     <label>Username</label>
-                                    <div class="field-value" id="username">admin123</div>
+                                    <div class="field-value" id="username">Loading...</div>
                                 </div>
                             </div>
                             
@@ -591,12 +646,7 @@
                                 </div>
                                 <div class="field-content">
                                     <label>Email Address</label>
-                                    <div class="field-value" id="email">admin@fortiroom.com</div>
-                                </div>
-                                <div class="field-action">
-                                    <button class="btn btn-primary btn-sm update-btn" onclick="openUpdateModal('email')">
-                                        <i class="fa fa-edit"></i> Update
-                                    </button>
+                                    <div class="field-value" id="email">Loading...</div>
                                 </div>
                             </div>
                             
@@ -611,22 +661,6 @@
                                 </div>
                                 <div class="field-action">
                                     <button class="btn btn-primary btn-sm update-btn" onclick="openUpdateModal('password')">
-                                        <i class="fa fa-edit"></i> Update
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <!-- Phone Number Field -->
-                            <div class="profile-field">
-                                <div class="field-icon">
-                                    <i class="fa fa-phone"></i>
-                                </div>
-                                <div class="field-content">
-                                    <label>Phone Number</label>
-                                    <div class="field-value" id="phone">+60 12-345 6789</div>
-                                </div>
-                                <div class="field-action">
-                                    <button class="btn btn-primary btn-sm update-btn" onclick="openUpdateModal('phone')">
                                         <i class="fa fa-edit"></i> Update
                                     </button>
                                 </div>
@@ -651,45 +685,25 @@
             </div>
             <div class="update-modal-body">
                 <form id="updateForm">
-                    <!-- Email Update Form -->
-                    <div id="emailForm" class="update-form" style="display: none;">
-                        <div class="form-group-update">
-                            <label for="newEmail">New Email Address <span class="required">*</span></label>
-                            <input type="email" id="newEmail" placeholder="e.g., admin@fortiroom.com" required>
-                        </div>
-                        <div class="form-group-update">
-                            <label for="confirmEmail">Confirm Email Address <span class="required">*</span></label>
-                            <input type="email" id="confirmEmail" placeholder="Re-enter email address" required>
-                        </div>
-                    </div>
-                    
                     <!-- Password Update Form -->
                     <div id="passwordForm" class="update-form" style="display: none;">
                         <div class="form-group-update">
                             <label for="currentPassword">Current Password <span class="required">*</span></label>
                             <input type="password" id="currentPassword" placeholder="Enter your current password" required>
+                            <i class="fa fa-eye-slash toggle-password" data-target="currentPassword"></i>
                         </div>
                         <div class="form-group-update">
                             <label for="newPassword">New Password <span class="required">*</span></label>
                             <input type="password" id="newPassword" placeholder="Enter new password (min. 8 characters)" required>
+                            <i class="fa fa-eye-slash toggle-password" data-target="newPassword"></i>
                         </div>
                         <div class="form-group-update">
                             <label for="confirmPassword">Confirm New Password <span class="required">*</span></label>
                             <input type="password" id="confirmPassword" placeholder="Re-enter new password" required>
+                            <i class="fa fa-eye-slash toggle-password" data-target="confirmPassword"></i>
                         </div>
                     </div>
                     
-                    <!-- Phone Number Update Form -->
-                    <div id="phoneForm" class="update-form" style="display: none;">
-                        <div class="form-group-update">
-                            <label for="newPhone">New Phone Number <span class="required">*</span></label>
-                            <input type="tel" id="newPhone" placeholder="+60 12-345 6789" required>
-                        </div>
-                        <div class="form-group-update">
-                            <label for="confirmPhone">Confirm Phone Number <span class="required">*</span></label>
-                            <input type="tel" id="confirmPhone" placeholder="Re-enter phone number" required>
-                        </div>
-                </div>
                 </form>
             </div>
             <div class="update-modal-footer">
@@ -711,13 +725,53 @@
     <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
         var currentUpdateField = null;
-        
-        // Profile data
+        var supabase = null;
+        var currentUser = null;
         var profileData = {
-            username: 'admin123',
-            email: 'admin@fortiroom.com',
-            phone: '+60 12-345 6789'
+            username: '',
+            email: ''
         };
+        
+        // Initialize Supabase and load user data
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Supabase
+            const { createClient } = window.supabase || {};
+            if (!createClient) {
+                console.error('Supabase library failed to load.');
+                return;
+            }
+            supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
+            
+            // Check if user is logged in
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+                // Redirect to login if not authenticated
+                window.location.href = '../login.php';
+                return;
+            }
+            
+            currentUser = sessionData.session.user;
+            await loadUserProfile();
+        });
+        
+        // Load user profile data from Supabase
+        async function loadUserProfile() {
+            if (!currentUser) return;
+            
+            // Get username from user_metadata
+            const username = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'Admin';
+            const email = currentUser.email || 'No email';
+            
+            // Update UI
+            document.getElementById('username').textContent = username;
+            document.getElementById('email').textContent = email;
+            
+            // Store in profileData
+            profileData = {
+                username: username,
+                email: email
+            };
+        }
         
         function openUpdateModal(field) {
             currentUpdateField = field;
@@ -726,15 +780,9 @@
             $('.update-form').hide();
             
             // Show the appropriate form and update modal title
-            if (field === 'email') {
-                $('#emailForm').show();
-                $('#modalTitle').text('Update Email Address');
-            } else if (field === 'password') {
+            if (field === 'password') {
                 $('#passwordForm').show();
                 $('#modalTitle').text('Update Password');
-            } else if (field === 'phone') {
-                $('#phoneForm').show();
-                $('#modalTitle').text('Update Phone Number');
             }
             
             // Show modal
@@ -751,44 +799,44 @@
             currentUpdateField = null;
         }
         
-        function saveUpdate() {
-            if (!currentUpdateField) return;
+        // Helper function to handle logout after password update for security
+        async function logoutAfterPasswordUpdate() {
+            // Update UI first
+            closeUpdateModal();
             
-            if (currentUpdateField === 'email') {
-                var newEmail = $('#newEmail').val();
-                var confirmEmail = $('#confirmEmail').val();
-                
-                if (!newEmail || !confirmEmail) {
-                    alert('Please fill in all fields.');
-                    return;
-                }
-                
-                if (newEmail !== confirmEmail) {
-                    alert('Email addresses do not match. Please try again.');
-                    return;
-                }
-                
-                // Validate email format
-                var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(newEmail)) {
-                    alert('Please enter a valid email address.');
-                    return;
-                }
-                
-                // Update email in profile
-                profileData.email = newEmail;
-                $('#email').text(newEmail);
-                
-                closeUpdateModal();
-                alert('Email address updated successfully!');
-                
-            } else if (currentUpdateField === 'password') {
+            // Show security notification
+            alert('Password updated successfully!\n\nFor security purposes, the system will log you out. Please log in again with your new password.');
+            
+            // Log out from Supabase
+            try {
+                await supabase.auth.signOut();
+                console.log('User logged out after password update');
+            } catch (logoutError) {
+                console.error('Logout error:', logoutError);
+            }
+            
+            // Redirect to login page
+            setTimeout(() => {
+                window.location.href = '../login.php';
+            }, 500);
+        }
+        
+        async function saveUpdate() {
+            if (!currentUpdateField || !supabase || !currentUser) return;
+            
+            if (currentUpdateField === 'password') {
                 var currentPassword = $('#currentPassword').val();
                 var newPassword = $('#newPassword').val();
                 var confirmPassword = $('#confirmPassword').val();
                 
                 if (!currentPassword || !newPassword || !confirmPassword) {
                     alert('Please fill in all fields.');
+                    return;
+                }
+                
+                // Check if new password is the same as current password
+                if (currentPassword === newPassword) {
+                    alert('New password must be different from your current password.');
                     return;
                 }
                 
@@ -802,29 +850,89 @@
                     return;
                 }
                 
-                closeUpdateModal();
-                alert('Password updated successfully!');
-                
-            } else if (currentUpdateField === 'phone') {
-                var newPhone = $('#newPhone').val();
-                var confirmPhone = $('#confirmPhone').val();
-                
-                if (!newPhone || !confirmPhone) {
-                    alert('Please fill in all fields.');
+                // Validate password strength
+                if (!/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
+                    alert('Password must contain at least 1 uppercase letter, 1 number, and 1 symbol.');
                     return;
                 }
                 
-                if (newPhone !== confirmPhone) {
-                    alert('Phone numbers do not match. Please try again.');
-                    return;
+                try {
+                    // Show loading state
+                    var saveBtn = $('.btn-save');
+                    var originalBtnText = saveBtn.html();
+                    saveBtn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Updating...');
+                    
+                    // First, verify the current password by attempting to sign in
+                    console.log('Verifying current password...');
+                    const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
+                        email: currentUser.email,
+                        password: currentPassword
+                    });
+                    
+                    if (verifyError) {
+                        console.error('Current password verification failed:', verifyError);
+                        saveBtn.prop('disabled', false).html(originalBtnText);
+                        
+                        if (verifyError.message && (
+                            verifyError.message.includes('Invalid') || 
+                            verifyError.message.includes('invalid') ||
+                            verifyError.message.includes('credentials') ||
+                            verifyError.message.includes('password')
+                        )) {
+                            throw new Error('Current password is incorrect. Please try again.');
+                        }
+                        throw verifyError;
+                    }
+                    
+                    console.log('Current password verified successfully');
+                    
+                    // Now update to the new password
+                    console.log('Updating password...');
+                    const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+                        password: newPassword
+                    });
+                    
+                    if (updateError) {
+                        console.error('Password update error:', updateError);
+                        saveBtn.prop('disabled', false).html(originalBtnText);
+                        
+                        if (updateError.message && updateError.message.includes('same')) {
+                            throw new Error('New password must be different from your current password.');
+                        }
+                        throw updateError;
+                    }
+                    
+                    console.log('Password updated successfully');
+                    
+                    // Reset button
+                    saveBtn.prop('disabled', false).html(originalBtnText);
+                    
+                    // Log out for security purposes
+                    await logoutAfterPasswordUpdate();
+                    
+                } catch (error) {
+                    console.error('Password update error:', error);
+                    
+                    // Reset button
+                    var saveBtn = $('.btn-save');
+                    if (saveBtn.prop('disabled')) {
+                        saveBtn.prop('disabled', false).html('Update');
+                    }
+                    
+                    let errorMessage = 'Failed to update password. ';
+                    if (error.message) {
+                        if (error.message.includes('incorrect') || error.message.includes('Invalid')) {
+                            errorMessage = error.message;
+                        } else if (error.message.includes('same')) {
+                            errorMessage = 'New password must be different from your current password.';
+                        } else {
+                            errorMessage += error.message;
+                        }
+                    } else {
+                        errorMessage += 'Please try again.';
+                    }
+                    alert(errorMessage);
                 }
-                
-                // Update phone in profile
-                profileData.phone = newPhone;
-                $('#phone').text(newPhone);
-                
-                closeUpdateModal();
-                alert('Phone number updated successfully!');
             }
         }
         
@@ -905,6 +1013,21 @@
                 closeUpdateModal();
             }
         });
+        
+        // Toggle password visibility
+        $(document).on('click', '.toggle-password', function() {
+            var targetId = $(this).attr('data-target');
+            var passwordInput = $('#' + targetId);
+            
+            if (passwordInput.attr('type') === 'password') {
+                passwordInput.attr('type', 'text');
+                $(this).removeClass('fa-eye-slash').addClass('fa-eye');
+            } else {
+                passwordInput.attr('type', 'password');
+                $(this).removeClass('fa-eye').addClass('fa-eye-slash');
+            }
+        });
+        
     </script>
     <!-- Custom Js -->
     <script src="assets/js/custom-scripts.js"></script>

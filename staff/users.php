@@ -1,3 +1,28 @@
+<?php
+// Minimal .env loader (no external deps). Loads KEY=VALUE pairs into $_ENV.
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env';
+if (file_exists($envPath)) {
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(ltrim($line), '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
+            // Remove optional surrounding quotes
+            $len = strlen($value);
+            if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
+                $value = substr($value, 1, $len - 2);
+            }            
+            $_ENV[$key] = $value;
+        }
+    }
+}
+$SUPABASE_URL = $_ENV['SUPABASE_URL'] ?? '';
+$SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
+?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -16,6 +41,15 @@
     <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
     <!-- TABLE STYLES-->
     <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <!-- Supabase JS v2 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Injected from server-side env. The anon key is safe to expose client-side.
+        window.__SUPABASE__ = {
+            url: "<?php echo htmlspecialchars($SUPABASE_URL, ENT_QUOTES, 'UTF-8'); ?>",
+            anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
+        };
+    </script>
     <style>
         body::-webkit-scrollbar {
             display: none;
@@ -68,17 +102,29 @@
             font-weight: 600;
             text-transform: uppercase;
         }
-        .status-termination_sent {
+        .status-pending {
             background-color: #fcf8e3;
             color: #8a6d3b;
         }
-        .status-termination_progress {
-            background-color: #f2dede;
-            color: #a94442;
+        .status-approved {
+            background-color: #d4edda;
+            color: #155724;
         }
-        .status-termination_declined {
+        .status-declined {
             background-color: #d9edf7;
             color: #31708f;
+        }
+        .status-in_progress {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-cancelled {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        .status-completed {
+            background-color: #f8d7da;
+            color: #721c24;
         }
         
         /* Review Modal */
@@ -430,12 +476,13 @@
                                             <tr>
                                                 <th>Username</th>
                                                 <th>Email</th>
+                                                <th>Requested Date</th>
                                                 <th>Status</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="usersTableBody">
-                                            <!-- User Records -->
+                                            <!-- Deletion Request Records -->
                                         </tbody>
                                     </table>
                                 </div>
@@ -455,14 +502,21 @@
     <div id="reviewModal" class="review-modal-overlay">
         <div class="review-modal">
             <div class="review-modal-header">
-                <h3>Review Account Termination Request</h3>
+                <h3>Review Account Deletion Request</h3>
             </div>
             <div class="review-modal-body">
-                <p>Do you accept the request for Account Termination?</p>
+                <p>Do you accept the request for Account Deletion?</p>
                 <div class="user-info">
                     <strong>Username:</strong> <span id="modalUsername"></span><br>
-                    <strong>Email:</strong> <span id="modalEmail"></span>
+                    <strong>Email:</strong> <span id="modalEmail"></span><br>
+                    <strong>Requested Date:</strong> <span id="modalRequestedDate"></span><br>
+                    <strong>Request ID:</strong> <span id="modalRequestId"></span>
                 </div>
+                <p class="email-notice" style="margin-top: 15px;">
+                    <strong>Note:</strong> If approved, the account deletion process will start immediately and take 30 days to complete. 
+                    If the user logs in during this period, the deletion will be cancelled automatically. 
+                    Bookings and penalties records will be retained for analytics purposes.
+                </p>
                 <p class="email-notice">An email notification will be sent to the user regarding your decision.</p>
             </div>
             <div class="review-modal-footer">
@@ -484,55 +538,296 @@
     <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
         var dataTable;
+        var supabase = null;
+        var currentUser = null;
+        var deletionRequestsData = []; // Always keep as array
+        var usersMap = {}; // Map of user_id to user info (username, email)
+        var currentReviewRequest = null;
         
-        // Sample user data
-        var usersData = [
-            { username: 'michaelbrown', email: 'michael.brown@helplive.edu.my', fullName: 'Michael Brown', status: 'termination_sent' },
-            { username: 'johnsmith', email: 'john.smith@helplive.edu.my', fullName: 'John Smith', status: 'termination_progress' },
-            { username: 'sarahdavis', email: 'sarah.davis@helplive.edu.my', fullName: 'Sarah Davis', status: 'termination_progress' }
-        ];
+        // Ensure deletionRequestsData is always an array (defensive programming)
+        if (!Array.isArray(deletionRequestsData)) {
+            deletionRequestsData = [];
+        }
         
-        var currentReviewUser = null;
+        // Initialize Supabase and load deletion requests
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Supabase
+            const { createClient } = window.supabase || {};
+            if (!createClient) {
+                console.error('Supabase library failed to load.');
+                alert('Failed to load database connection. Please refresh the page.');
+                return;
+            }
+            supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
+            
+            // Check if user is logged in
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+                // Redirect to login if not authenticated
+                window.location.href = '../login.php';
+                return;
+            }
+            
+            currentUser = sessionData.session.user;
+            
+            // Load deletion requests and user info
+            await loadDeletionRequests();
+        });
         
+        // Load deletion requests from database via PHP endpoint (uses service key, bypasses RLS)
+        async function loadDeletionRequests() {
+            try {
+                // Load deletion requests via PHP endpoint (uses service key, bypasses RLS)
+                const response = await fetch('get_deletion_requests.php', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Failed to fetch deletion requests. Status:', response.status, 'Response:', errorText);
+                    throw new Error('Failed to fetch deletion requests: ' + response.statusText);
+                }
+                
+                const data = await response.json();
+                console.log('Deletion requests API response:', data);
+                
+                // Ensure requests is an array - defensive validation
+                if (!data) {
+                    console.error('No data received from API');
+                    deletionRequestsData = [];
+                } else if (data.error) {
+                    console.error('API returned error:', data.error);
+                    // Check if it's a table doesn't exist error
+                    if (data.message && (data.message.includes('does not exist') || data.message.includes('Table does not exist'))) {
+                        alert('⚠️ Database Setup Required\n\nThe account_deletion_requests table has not been created yet.\n\nPlease run create_account_deletion_requests_table.sql in your Supabase SQL Editor.');
+                        deletionRequestsData = [];
+                    } else {
+                        // For other errors, show error but don't throw (allow page to load with empty data)
+                        console.error('Error loading deletion requests:', data.error);
+                        deletionRequestsData = [];
+                    }
+                } else if (!data.hasOwnProperty('requests')) {
+                    console.error('Unexpected response structure - missing "requests" property:', data);
+                    deletionRequestsData = [];
+                } else if (!Array.isArray(data.requests)) {
+                    console.error('Requests is not an array. Type:', typeof data.requests, 'Value:', data.requests);
+                    // Force to array - handle null/undefined/object cases
+                    if (data.requests === null || data.requests === undefined) {
+                        deletionRequestsData = [];
+                    } else if (Array.isArray(data.requests)) {
+                        deletionRequestsData = data.requests;
+                    } else {
+                        // Not an array, force to empty array
+                        deletionRequestsData = [];
+                    }
+                } else {
+                    // Valid array
+                    deletionRequestsData = data.requests;
+                }
+                
+                // Final safety check - ensure it's definitely an array
+                if (!Array.isArray(deletionRequestsData)) {
+                    console.error('deletionRequestsData is still not an array after validation. Forcing to empty array.');
+                    deletionRequestsData = [];
+                }
+                
+                console.log('Loaded deletion requests:', deletionRequestsData.length, 'requests');
+                console.log('Deletion requests data type:', typeof deletionRequestsData, 'Is array:', Array.isArray(deletionRequestsData));
+                
+                // Get unique user IDs (only if we have valid array data)
+                var userIds = [];
+                if (Array.isArray(deletionRequestsData) && deletionRequestsData.length > 0) {
+                    try {
+                        userIds = [...new Set(deletionRequestsData.map(function(r) {
+                            return r && r.user_id ? r.user_id : null;
+                        }).filter(function(id) {
+                            return id !== null && id !== undefined;
+                        }))];
+                    } catch (mapError) {
+                        console.error('Error mapping user IDs:', mapError);
+                        console.error('deletionRequestsData:', deletionRequestsData);
+                        userIds = [];
+                    }
+                }
+                
+                console.log('User IDs to fetch:', userIds.length, 'user IDs');
+                
+                // Load user info for all user IDs
+                if (userIds.length > 0) {
+                    await loadUsersInfo(userIds);
+                }
+                
+                // Populate table
+                populateUsersTable();
+                
+                // Initialize or refresh DataTable
+                initializeDataTable();
+                
+            } catch (error) {
+                console.error('Error in loadDeletionRequests:', error);
+                console.error('Error stack:', error.stack);
+                alert('Failed to load deletion requests: ' + error.message);
+                deletionRequestsData = [];
+                populateUsersTable();
+                initializeDataTable();
+            }
+        }
+        
+        // Load user info from Supabase Auth via PHP endpoint
+        async function loadUsersInfo(userIds) {
+            try {
+                const response = await fetch('get_users_info.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_ids: userIds
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch user info: ' + response.statusText);
+                }
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                usersMap = data.users || {};
+                console.log('Loaded user info for', Object.keys(usersMap).length, 'users');
+            } catch (error) {
+                console.error('Error loading user info:', error);
+                // Continue even if user info fails to load
+            }
+        }
+        
+        // Populate users table with deletion requests
         function populateUsersTable() {
             var tbody = $('#usersTableBody');
             tbody.empty();
             
-            usersData.forEach(function(user) {
-                var statusClass = 'status-' + user.status;
-                var statusText = '';
-                if (user.status === 'termination_sent') {
-                    statusText = 'Account Termination Request Sent';
-                } else if (user.status === 'termination_progress') {
-                    statusText = 'Account Termination in Progress';
-                } else if (user.status === 'termination_declined') {
-                    statusText = 'Account Termination Request Declined';
+            // Safety check - ensure deletionRequestsData is an array
+            if (!Array.isArray(deletionRequestsData)) {
+                console.error('populateUsersTable: deletionRequestsData is not an array:', typeof deletionRequestsData);
+                deletionRequestsData = [];
+            }
+            
+            if (deletionRequestsData.length === 0) {
+                tbody.append('<tr><td colspan="5" style="text-align: center; padding: 20px;">No account deletion requests found.</td></tr>');
+                return;
+            }
+            
+            try {
+                deletionRequestsData.forEach(function(request) {
+                var userInfo = usersMap[request.user_id] || {};
+                var username = userInfo.username || 'User ' + (request.user_id ? request.user_id.substring(0, 8) : 'Unknown');
+                var email = userInfo.email || 'N/A';
+                
+                // Format requested date
+                var requestedDate = 'N/A';
+                if (request.requested_at) {
+                    var date = new Date(request.requested_at);
+                    requestedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 }
                 
-                var row = '<tr data-username="' + user.username + '">' +
-                    '<td>' + user.username + '</td>' +
-                    '<td>' + user.email + '</td>' +
+                // Get status text and class
+                var statusClass = 'status-' + request.status;
+                var statusText = '';
+                switch (request.status) {
+                    case 'pending':
+                        statusText = 'Pending Review';
+                        break;
+                    case 'approved':
+                        statusText = 'Approved';
+                        break;
+                    case 'declined':
+                        statusText = 'Declined';
+                        break;
+                    case 'in_progress':
+                        statusText = 'Deletion in Progress';
+                        break;
+                    case 'cancelled':
+                        statusText = 'Cancelled';
+                        break;
+                    case 'completed':
+                        statusText = 'Completed';
+                        break;
+                    default:
+                        statusText = request.status;
+                }
+                
+                // Only show review button for pending requests
+                var actionButton = '';
+                if (request.status === 'pending') {
+                    actionButton = '<button class="btn btn-sm btn-primary" onclick="reviewRequest(\'' + request.id + '\')"><i class="fa fa-search"></i> Review Request</button>';
+                } else {
+                    actionButton = '<span style="color: #999; font-style: italic;">No action available</span>';
+                }
+                
+                var row = '<tr data-request-id="' + request.id + '">' +
+                    '<td>' + escapeHtml(username) + '</td>' +
+                    '<td>' + escapeHtml(email) + '</td>' +
+                    '<td>' + requestedDate + '</td>' +
                     '<td class="status-cell"><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
-                    '<td>' +
-                    '<button class="btn btn-sm btn-primary" onclick="reviewRequest(\'' + user.username + '\')"><i class="fa fa-search"></i> Review Request</button>' +
-                    '</td>' +
+                    '<td>' + actionButton + '</td>' +
                     '</tr>';
                 
                 tbody.append(row);
-            });
+                });
+            } catch (forEachError) {
+                console.error('Error in populateUsersTable forEach:', forEachError);
+                console.error('deletionRequestsData:', deletionRequestsData);
+                tbody.append('<tr><td colspan="5" style="text-align: center; padding: 20px; color: red;">Error loading deletion requests. Please check console.</td></tr>');
+            }
         }
         
-        function reviewRequest(username) {
-            // Find user data
-            var user = usersData.find(function(u) { return u.username === username; });
-            if (!user) return;
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            var map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+        
+        // Review deletion request
+        function reviewRequest(requestId) {
+            // Find request data
+            var request = deletionRequestsData.find(function(r) { return r.id === requestId; });
+            if (!request) {
+                alert('Request not found.');
+                return;
+            }
             
-            // Store current user being reviewed
-            currentReviewUser = username;
+            // Get user info
+            var userInfo = usersMap[request.user_id] || {};
+            var username = userInfo.username || 'User ' + (request.user_id ? request.user_id.substring(0, 8) : 'Unknown');
+            var email = userInfo.email || 'N/A';
             
-            // Populate modal with user info
-            $('#modalUsername').text(user.username);
-            $('#modalEmail').text(user.email);
+            // Format requested date
+            var requestedDate = 'N/A';
+            if (request.requested_at) {
+                var date = new Date(request.requested_at);
+                requestedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            
+            // Store current request being reviewed
+            currentReviewRequest = requestId;
+            
+            // Populate modal with request info
+            $('#modalUsername').text(username);
+            $('#modalEmail').text(email);
+            $('#modalRequestedDate').text(requestedDate);
+            $('#modalRequestId').text(requestId);
             
             // Show modal
             $('#reviewModal').addClass('active');
@@ -542,47 +837,127 @@
         function closeReviewModal() {
             $('#reviewModal').removeClass('active');
             $('body').css('overflow', '');
-            currentReviewUser = null;
+            currentReviewRequest = null;
         }
         
-        function acceptTermination() {
-            if (!currentReviewUser) return;
-            
-            // Find user and update status
-            var user = usersData.find(function(u) { return u.username === currentReviewUser; });
-            if (user) {
-                user.status = 'termination_progress';
-                
-                // Update the table row
-                var row = $('tr[data-username="' + currentReviewUser + '"]');
-                row.find('.status-cell').html('<span class="status-badge status-termination_progress">Account Termination in Progress</span>');
+        // Accept deletion request
+        async function acceptTermination() {
+            if (!currentReviewRequest || !currentUser) {
+                alert('No request selected or user not logged in.');
+                return;
             }
             
-            // Close modal
-            closeReviewModal();
-            
-            // Show confirmation
-            alert('Request accepted! The user status has been updated to "Account Termination in Progress".\n\nAn email notification has been sent to the user.');
+            try {
+                // Update request status to approved (which will set it to in_progress)
+                const response = await fetch('update_deletion_request.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        request_id: currentReviewRequest,
+                        status: 'approved',
+                        reviewed_by: currentUser.id,
+                        admin_notes: 'Request approved by administrator'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to update deletion request');
+                }
+                
+                // Close modal
+                closeReviewModal();
+                
+                // Show confirmation
+                alert('Request accepted! The account deletion process has started and will take 30 days to complete.\n\nIf the user logs in during this period, the deletion will be cancelled automatically.\n\nAn email notification has been sent to the user.');
+                
+                // Reload the page after alert is dismissed
+                window.location.reload();
+                
+            } catch (error) {
+                console.error('Error accepting termination:', error);
+                alert('Failed to accept request: ' + (error.message || error));
+            }
         }
         
-        function declineTermination() {
-            if (!currentReviewUser) return;
-            
-            // Find user and update status
-            var user = usersData.find(function(u) { return u.username === currentReviewUser; });
-            if (user) {
-                user.status = 'termination_declined';
-                
-                // Update the table row
-                var row = $('tr[data-username="' + currentReviewUser + '"]');
-                row.find('.status-cell').html('<span class="status-badge status-termination_declined">Account Termination Request Declined</span>');
+        // Decline deletion request
+        async function declineTermination() {
+            if (!currentReviewRequest || !currentUser) {
+                alert('No request selected or user not logged in.');
+                return;
             }
             
-            // Close modal
-            closeReviewModal();
+            try {
+                // Update request status to declined
+                const response = await fetch('update_deletion_request.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        request_id: currentReviewRequest,
+                        status: 'declined',
+                        reviewed_by: currentUser.id,
+                        admin_notes: 'Request declined by administrator'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to update deletion request');
+                }
+                
+                // Close modal
+                closeReviewModal();
+                
+                // Show confirmation
+                alert('Request declined. The user status has been updated to "Declined".\n\nAn email notification has been sent to the user.');
+                
+                // Reload the page after alert is dismissed
+                window.location.reload();
+                
+            } catch (error) {
+                console.error('Error declining termination:', error);
+                alert('Failed to decline request: ' + (error.message || error));
+            }
+        }
+        
+        // Initialize DataTable
+        function initializeDataTable() {
+            // Destroy existing DataTable if it exists
+            if (dataTable) {
+                try {
+                    dataTable.fnDestroy();
+                } catch (e) {
+                    console.warn('Error destroying DataTable:', e);
+                }
+                dataTable = null;
+            }
             
-            // Show confirmation
-            alert('Request declined. The user status has been updated to "Account Termination Request Declined".\n\nAn email notification has been sent to the user.');
+            // Wait a bit for DOM to update
+            setTimeout(function() {
+                if ($('#dataTables-example').length) {
+                    var rowCount = $('#dataTables-example tbody tr').length;
+                    // Only initialize if there are rows (not just the "No requests" message)
+                    if (rowCount > 0 && !$('#dataTables-example tbody tr td[colspan]').length) {
+                        try {
+                            dataTable = $('#dataTables-example').dataTable({
+                                "order": [[ 2, "desc" ]], // Sort by requested date (newest first)
+                                "pageLength": 10,
+                                "columnDefs": [
+                                    { "orderable": false, "targets": 4 } // Disable sorting on Actions column
+                                ]
+                            });
+                        } catch (e) {
+                            console.error('Error initializing DataTable:', e);
+                        }
+                    }
+                }
+            }, 100);
         }
         
         // Force reset sidebar state on page load and browser back/forward
@@ -604,15 +979,6 @@
             setTimeout(function() {
                 resetSidebar();
             }, 100);
-            
-            // Populate table with users
-            populateUsersTable();
-            
-            // Initialize DataTable
-            dataTable = $('#dataTables-example').dataTable({
-                "order": [[ 2, "desc" ]],  // Sort by status (column index 2) - Request Sent first
-                "pageLength": 10
-            });
             
             // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {

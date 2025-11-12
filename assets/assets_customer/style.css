@@ -92,23 +92,55 @@ form {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   grid-column: 1 / 2;
   grid-row: 1 / 2;
   transition: opacity 0.01s 0.35s;
   padding: 0;
-  padding-top: 1.5rem;
-  gap: 0.9rem;
+  padding-top: 0.5rem;
+  gap: 0.7rem;
 }
 
 form.sign-up-form {
   opacity: 0;
   pointer-events: none;
+  padding-top: 0.2rem;
+  gap: 0.4rem;
+  justify-content: flex-start; /* Keep registration form at top */
+}
+
+/* Reduce spacing in registration form to move it higher */
+form.sign-up-form .logo {
+  margin-bottom: 0.3rem;
+}
+
+form.sign-up-form .heading {
+  margin-bottom: 0.5rem;
+}
+
+form.sign-up-form .file-upload-wrap {
+  margin-bottom: 0.5rem;
+}
+
+form.sign-up-form .text {
+  margin-bottom: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+form.sign-up-form .sign-btn-main {
+  margin-top: 0.2rem;
+  margin-bottom: 0.3rem;
 }
 
 form.forgot-password-form {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Center login and reset password forms vertically */
+form.sign-in-form,
+form.forgot-password-form {
+  justify-content: center;
 }
 
 .logo {
@@ -127,7 +159,8 @@ form.forgot-password-form {
   font-size: 1.9rem;
   font-weight: 600;
   color: #000000;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.2rem;
+  margin-top: 0;
 }
 
 .heading h6 {
@@ -228,6 +261,30 @@ form.forgot-password-form {
   color: #2a5646;
   font-weight: 500;
   min-height: 0.8rem;
+}
+
+.file-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.file-clear-btn:hover {
+  background-color: #c82333;
+  transform: scale(1.05);
+}
+
+.file-clear-btn i {
+  font-size: 0.85rem;
 }
 
 /* Extra top margin for first password field in reset form */
@@ -424,7 +481,7 @@ label {
   cursor: pointer;
   border-radius: 0.8rem;
   font-size: 1.0rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;
 }
 
 .sign-btn i {
@@ -445,8 +502,8 @@ label {
   cursor: pointer;
   border-radius: 0.8rem;
   font-size: 1.0rem;
-  margin-top: 0;
-  margin-bottom: 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .sign-btn-main i {
