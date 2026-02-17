@@ -129,7 +129,7 @@ if ($SUPABASE_URL && $SUPABASE_SERVICE_KEY && $ADMIN_EMAIL && $ADMIN_PASSWORD &&
                             </div>
                             <span class="file-name" id="file_name"></span>
                             <p style="margin-top: 8px; font-size: 11px; color: #6c757d; text-align: center;">
-                                Max size: 10MB
+                                Max size: 10MB 
                             </p>
                         </div>
                         <div class="input-wrap">
@@ -462,15 +462,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Validate image file: max 10MB
     async function validateImageFile(file) {
-        // Check file type
-        if (!file.type.startsWith('image/')) {
-            return { valid: false, message: 'Please select an image file.' };
+        if (!file) {
+            return { valid: false, message: 'Please select a file.' };
+        }
+        
+        // Check file type by MIME type
+        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+        if (!file.type || !allowedMimeTypes.includes(file.type.toLowerCase())) {
+            return { valid: false, message: 'Please select a valid image file (JPEG, JPG, PNG, or GIF only).' };
+        }
+        
+        // Also check file extension as a backup
+        const fileName = file.name.toLowerCase();
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
+        const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+        if (!hasValidExtension) {
+            return { valid: false, message: 'Please select a valid image file (JPEG, JPG, PNG, or GIF only).' };
         }
         
         // Check file size (10MB = 10 * 1024 * 1024 bytes)
         const maxSize = 10 * 1024 * 1024; // 10MB
         if (file.size > maxSize) {
-            return { valid: false, message: 'File size must not exceed 10MB.' };
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            return { valid: false, message: `File size (${fileSizeMB}MB) exceeds the maximum allowed size of 10MB.` };
         }
         
         return { valid: true };
@@ -677,6 +691,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             }
             
+            // Check email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address.');
+                return false;
+            }
+            
+            // Check if email already exists in Supabase
+            try {
+                const emailCheckResponse = await fetch('check_email.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                if (!emailCheckResponse.ok) {
+                    throw new Error('Server error during email check');
+                }
+                
+                const emailCheckResult = await emailCheckResponse.json();
+                
+                if (!emailCheckResult.available) {
+                    alert('This email address is already registered. Please use a different email or try logging in instead.');
+                    return false;
+                }
+            } catch (emailCheckError) {
+                console.error('Email check error:', emailCheckError);
+                alert('Unable to verify email availability. Please try again.');
+                return false;
+            }
+            
             // Check username uniqueness before proceeding (final check on submit)
             try {
                 const checkResponse = await fetch('check_username.php', {
@@ -710,6 +757,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             }
 
+            // Re-validate file one more time before upload (safety check)
+            const finalPhotoFile = photo.files[0];
+            const finalValidation = await validateImageFile(finalPhotoFile);
+            if (!finalValidation.valid) {
+                alert(finalValidation.message);
+                photo.value = ''; // Clear the file input
+                fileName.textContent = '';
+                updateClearButtonVisibility();
+                return false;
+            }
+            
             // Upload avatar to Supabase Storage via secure server endpoint
             let avatarUrl = null;
             try {
@@ -736,10 +794,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     emailRedirectTo: window.location.origin + basePath + 'login.php'
                 }
             });
+            
             if (error) {
-                alert(error.message || 'Registration failed. Please try again.');
+                // Check for specific error types related to duplicate emails
+                if (error.message && (
+                    error.message.includes('already registered') || 
+                    error.message.includes('already exists') ||
+                    error.message.includes('User already registered') ||
+                    error.message.includes('email address is already registered') ||
+                    error.message.includes('User with this email address already exists') ||
+                    error.status === 422 ||
+                    error.code === 'signup_disabled'
+                )) {
+                    alert('This email address is already registered. Please use a different email or try logging in instead.');
+                } else {
+                    alert(error.message || 'Registration failed. Please try again.');
+                }
+                console.error('Registration error:', error);
                 return false;
             }
+            
+            // Verify that user was created
+            if (!data || !data.user) {
+                alert('Registration may have failed. Please check if this email is already registered, or try again.');
+                return false;
+            }
+            
             alert('Registration submitted! Please check your email to confirm your account, then you can log in with your email and password.');
             window.location.href = 'login.php';
             return true;
