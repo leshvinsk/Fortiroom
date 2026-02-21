@@ -32,9 +32,8 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="assets/css/tailwind.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] } } } }</script>
     <!-- Morris Charts CSS -->
     <link href="assets/js/morris/morris-0.4.3.min.css" rel="stylesheet" />
     <!-- html2pdf library for PDF export -->
@@ -2590,6 +2589,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     </script>
 </body>
 </html>
+
 
 
 

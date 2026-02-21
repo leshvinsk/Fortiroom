@@ -32,8 +32,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] } } } }</script>
+    <link rel="stylesheet" href="assets/css/tailwind.css">
     <!-- Supabase JS v2 -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -673,6 +672,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     </script>
 </body>
 </html>
+
 
 
 
