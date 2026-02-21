@@ -15,7 +15,7 @@ if (file_exists($envPath)) {
             $len = strlen($value);
             if ($len >= 2 && (($value[0] === '"' && $value[$len - 1] === '"') || ($value[0] === "'" && $value[$len - 1] === "'"))) {
                 $value = substr($value, 1, $len - 2);
-            }            
+            }
             $_ENV[$key] = $value;
         }
     }
@@ -28,19 +28,13 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FORTIROOM - A Smart Space Management System</title>
+    <title>FORTIROOM | Intelligent Space Access Platform</title>
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
-    <!-- Bootstrap Styles-->
-    <link href="assets/css/bootstrap.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!-- FontAwesome Styles-->
-    <link href="assets/css/font-awesome.css" rel="stylesheet" />
-    <!-- Custom Styles-->
-    <link href="assets/css/custom-styles.css" rel="stylesheet" />
-    <!-- Google Fonts-->
-    <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
-    <!-- TABLE STYLES-->
-    <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] } } } }</script>
     <!-- Supabase JS v2 -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -51,491 +45,398 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         };
     </script>
     <style>
-        body::-webkit-scrollbar {
-            display: none;
+        /* Hide scrollbar */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        /* Sidebar transform-based show/hide */
+        .navbar-side {
+            transform: translateX(-260px);
+            transition: transform 0.3s ease;
         }
+        @media (min-width: 1024px) {
+            .navbar-side { transform: translateX(0) !important; }
+            #page-wrapper { margin-left: 260px !important; }
+            .navbar-top-links { display: flex !important; }
+            .mobile-only { display: none !important; }
+        }
+        .navbar-side.in { transform: translateX(0) !important; }
         
-        /* Hide scrollbar for Chrome, Safari and Opera */
-        ::-webkit-scrollbar {
-            width: 0px;
-            background: transparent;
+        @media (max-width: 1023px) {
+            .navbar-side { background-color: #3a6b4d !important; }
+            #sidebar-overlay {
+                background: rgba(0,0,0,0.78) !important;
+                z-index: 39 !important;
+            }
+            .navbar-top-links { display: none !important; }
+            .mobile-only { display: block !important; }
         }
+
+        /* Sidebar nav links */
+        .sidebar-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.85);
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .sidebar-nav-link:hover {
+            background: rgba(255,255,255,0.08);
+            color: #d3af37;
+            text-decoration: none;
+        }
+        .sidebar-nav-link.active-menu {
+            color: #d3af37;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+            padding-left: 26px;
+        }
+        .sidebar-nav-link.active-menu::before {
+            content: "";
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 7px solid #d3af37;
+        }
+        .sidebar-nav-link i { width: 16px; text-align: center; }
         
-        /* Top Navbar Right Links */
-        .navbar-top-links {
-            margin-right: 0;
+        /* Consistent dropdown corner radius */
+        select,
+        .dataTables_wrapper .dataTables_length select {
+            border-radius: 8px !important;
+            overflow: hidden;
         }
-        .navbar-top-links li {
-            display: inline-block;
-        }
-        .navbar-top-links li a {
-            padding: 15px 15px;
-            min-height: 50px;
-            color: #fff !important;
-            font-weight: 600;
-        }
-        .navbar-top-links li a i {
-            margin-right: 5px;
-        }
-        .navbar-top-links li a:hover,
-        .navbar-top-links li a:focus,
-        .navbar-top-links li a:active {
-            background-color: inherit !important;
-            color: #fff !important;
-            text-decoration: none !important;
-            cursor: default !important;
-            box-shadow: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-        }
-        .navbar-top-links li a.active-menu:hover,
-        .navbar-top-links li a.active-menu:focus,
-        .navbar-top-links li a.active-menu:active {
-            background-color: #3F729B !important;
-        }
-        
+        select option { border-radius: 8px; }
+
         /* Status Badges */
         .status-badge {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.03em;
+            display: inline-block;
         }
-        .status-pending {
-            background-color: #fcf8e3;
-            color: #8a6d3b;
+        .status-pending    { background: #fef9c3; color: #854d0e; }
+        .status-approved   { background: #dcfce7; color: #166534; }
+        .status-declined   { background: #dbeafe; color: #1e40af; }
+        .status-in_progress{ background: #fef3c7; color: #92400e; }
+        .status-cancelled  { background: #f3f4f6; color: #374151; }
+        .status-completed  { background: #fee2e2; color: #991b1b; }
+
+        /* DataTable overrides */
+        table.dataTable,
+        #dataTables-example { border-collapse: collapse !important; width: 100% !important; }
+        .elevated-card { box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important; }
+        #dataTables-example { table-layout: fixed; }
+        table.dataTable thead th,
+        #dataTables-example thead th {
+            background: #f9fafb;
+            color: #374151;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
         }
-        .status-approved {
-            background-color: #d4edda;
-            color: #155724;
+        table.dataTable tbody td,
+        #dataTables-example tbody td {
+            padding: 12px 16px;
+            font-size: 14px;
+            color: #374151;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+            text-align: left;
         }
-        .status-declined {
-            background-color: #d9edf7;
-            color: #31708f;
+        table.dataTable tbody tr:hover td,
+        #dataTables-example tbody tr:hover td { background: #f9fafb; }
+        #dataTables-example tbody td.empty-state { text-align: center !important; }
+        .dataTables_wrapper .dataTables_filter input {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 13px;
+            outline: none;
         }
-        .status-in_progress {
-            background-color: #fff3cd;
-            color: #856404;
+        .dataTables_wrapper .dataTables_filter input:focus { border-color: #16a34a; }
+        .dataTables_wrapper .dataTables_length select {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 13px;
         }
-        .status-cancelled {
-            background-color: #e2e3e5;
-            color: #383d41;
+        .dataTables_wrapper .dataTables_paginate .paginate_button {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
         }
-        .status-completed {
-            background-color: #f8d7da;
-            color: #721c24;
+        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background: #16a34a !important;
+            color: #fff !important;
+            border: none !important;
         }
-        
+        .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: #f0fdf4 !important;
+            color: #16a34a !important;
+            border: none !important;
+        }
+        .dataTables_wrapper .dataTables_info { font-size: 13px; color: #6b7280; }
+        .dataTables_wrapper .dataTables_length,
+        .dataTables_wrapper .dataTables_filter,
+        .dataTables_wrapper .dataTables_paginate,
+        .dataTables_wrapper .dataTables_info { display: none !important; }
+                button[class*="bg-green-600"],
+        button[class*="hover:bg-green-700"],
+        a[class*="bg-green-600"],
+        a[class*="hover:bg-green-700"] {
+            color: #ffffff !important;
+        }
+        button[class*="bg-green-600"]:hover,
+        button[class*="hover:bg-green-700"]:hover,
+        a[class*="bg-green-600"]:hover,
+        a[class*="hover:bg-green-700"]:hover {
+            color: #d3af37 !important;
+        }
+        .flatpickr-calendar {
+            border-radius: 10px !important;
+            border: 1px solid #e5e7eb !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12) !important;
+            z-index: 10050 !important;
+        }
+        .flatpickr-input { border-radius: 8px !important; }
+
         /* Review Modal */
         .review-modal-overlay {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
             z-index: 9999;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(2px);
+            backdrop-filter: blur(4px);
         }
-        
-        .review-modal-overlay.active {
-            display: flex;
-        }
-        
-        .review-modal {
-            background: #fff;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            animation: slideDown 0.3s ease;
-        }
-        
+        .review-modal-overlay.active { display: flex; }
+
         @keyframes slideDown {
-            from {
-                transform: translateY(-50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
+            from { transform: translateY(-30px); opacity: 0; }
+            to   { transform: translateY(0);     opacity: 1; }
         }
-        
-        .review-modal-header {
-            background: #fff;
-            color: #333;
-            padding: 24px 30px;
-            border-radius: 12px 12px 0 0;
-            position: relative;
-            border-bottom: 1px solid #e9ecef;
-        }
-        
-        .review-modal-header h3 {
-            margin: 0;
-            font-size: 22px;
-            font-weight: 600;
-            color: #1a1a1a;
-        }
-        
-        .review-modal-body {
-            padding: 30px;
-        }
-        
-        .review-modal-body p {
-            margin: 0 0 20px 0;
-            font-size: 15px;
-            line-height: 1.6;
-            color: #555;
-        }
-        
-        .review-modal-body .user-info {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        
-        .review-modal-body .user-info strong {
-            color: #333;
-        }
-        
-        .review-modal-body .email-notice {
-            font-size: 13px;
-            color: #666;
-            font-style: italic;
-            margin-top: 15px;
-        }
-        
-        .review-modal-footer {
-            padding: 20px 30px;
-            border-top: 1px solid #e9ecef;
-            text-align: right;
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            background: #f8f9fa;
-            border-radius: 0 0 12px 12px;
-        }
-        
-        .btn-accept {
-            background: #28a745;
-            color: #fff;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-accept:hover {
-            background: #218838;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
-        }
-        
-        .btn-decline {
-            background: #dc3545;
-            color: #fff;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-decline:hover {
-            background: #c82333;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-        }
-        
-        /* Fixed Header and Sidebar */
-        .navbar.navbar-default.top-navbar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            margin-bottom: 0;
-        }
-        
-        .navbar-default.navbar-side {
-            position: fixed;
-            top: 60px; /* Height of top navbar */
-            left: 0;
-            bottom: 0;
-            z-index: 999;
-            overflow-y: auto;
-            width: 260px;
-        }
-        
-        #page-wrapper {
-            margin-left: 260px;
-            margin-top: 60px; /* Height of top navbar */
-            min-height: 100vh;
-            position: relative;
-            padding-bottom: 50px;
-        }
-        
-        #wrapper {
-            width: 100%;
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
-        
-        body {
-            overflow-x: hidden;
-            overflow-y: auto !important;
-            min-height: 100vh;
-        }
-        
-        html {
-            overflow-y: auto !important;
-        }
-        
-        #page-inner {
-            min-height: auto;
-            padding-bottom: 30px;
-        }
-        
-        /* Mobile and Tablet Responsive */
-        @media (max-width: 991px) {
-            .panel-heading h4 {
-                text-align: center;
-            }
-            
-            .navbar.navbar-default.top-navbar {
-                background-color: #fff !important;
-                border-bottom: 1px solid #ddd !important;
-            }
-            
-            .navbar-header {
-                background-color: #fff !important;
-                width: 100% !important;
-                position: relative !important;
-            }
-            
-            .navbar-toggle {
-                display: block !important;
-                position: absolute !important;
-                right: 15px !important;
-                top: 8px !important;
-                float: none !important;
-                margin: 0 !important;
-                background-color: #fff !important;
-                border: 1px solid #888 !important;
-                padding: 6px 10px !important;
-            }
-            
-            .navbar-toggle .icon-bar {
-                background-color: #333 !important;
-            }
-            
-            .navbar-brand {
-                float: none !important;
-                display: inline-block !important;
-                padding: 10px 15px !important;
-            }
-            
-            /* Force sidebar to start hidden - CSS takes precedence */
-            .navbar-default.navbar-side {
-                left: -260px !important;
-                transition: left 0.3s ease;
-                z-index: 999;
-                background-color: #1a2942 !important;
-                transform: translateX(0) !important;
-            }
-            
-            /* Only show when explicitly opened */
-            .navbar-default.navbar-side.in {
-                left: 0 !important;
-                transform: translateX(0) !important;
-            }
-            
-            #page-wrapper {
-                margin-left: 0 !important;
-                margin-top: 60px;
-                width: 100% !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            .navbar-top-links {
-                display: none !important;
-            }
-            
-            .sidebar-collapse {
-                padding-top: 0;
-            }
-            
-            .sidebar-collapse .nav > li > a {
-                padding: 15px 15px 15px 25px;
-            }
-            
-            .mobile-only {
-                display: block !important;
-                border-top: 1px solid #2C5F7C;
-            }
-            
-            .mobile-only:first-of-type {
-                margin-top: 10px;
-            }
-            
-            #wrapper {
-                overflow-x: hidden !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            body {
-                background-color: #f5f5f5 !important;
-            }
-        }
+        .modal-animate { animation: slideDown 0.25s ease; }
     </style>
 </head>
-<body>
+<body class="bg-[#f7f7f5] font-sans antialiased overflow-x-hidden min-h-screen">
     <div id="wrapper">
-        <nav class="navbar navbar-default top-navbar" role="navigation">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".sidebar-collapse">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
+
+        <!-- TOP HEADER -->
+        <header class="fixed top-0 left-0 right-0 z-50 h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+            <div class="flex items-center gap-3">
+                <button class="navbar-toggle lg:hidden flex flex-col gap-[5px] p-2 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Toggle navigation">
+                    <span class="w-5 h-0.5 bg-gray-600 block"></span>
+                    <span class="w-5 h-0.5 bg-gray-600 block"></span>
+                    <span class="w-5 h-0.5 bg-gray-600 block"></span>
                 </button>
-                <a class="navbar-brand" href="dashboard.php"><img src="../images/header_logo.png" width="150"></a>
+                <a href="dashboard.php">
+                    <img src="../images/header_logo.png" class="h-9 w-auto" alt="Fortiroom">
+                </a>
             </div>
-            
-            <ul class="nav navbar-top-links navbar-right">
+            <ul class="navbar-top-links hidden items-center gap-1">
                 <li>
-                    <a href="profile.php"><i class="fa fa-user-circle"></i> Profile</a>
+                    <a href="profile.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                        <i class="fa fa-user-circle"></i> Profile
+                    </a>
                 </li>
                 <li>
-                    <a href="logout.php"><i class="fa fa-sign-out"></i> Log Out</a>
+                    <a href="logout.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                        <i class="fa fa-sign-out"></i> Log Out
+                    </a>
                 </li>
             </ul>
-        </nav>
-        <!--/. NAV TOP  -->
-        <nav class="navbar-default navbar-side" role="navigation">
-            <div class="sidebar-collapse">
-                <ul class="nav" id="main-menu">
+        </header>
+
+        <!-- SIDEBAR -->
+        <aside class="navbar-side fixed top-[60px] left-0 w-[260px] bottom-0 bg-[#1f3a26] overflow-y-auto z-40">
+            <nav class="sidebar-collapse py-5">
+                <ul id="main-menu" class="space-y-1 px-3">
                     <li>
-                        <a href="dashboard.php"><i class="fa fa-dashboard fa-fw"></i> Dashboard</a>
-                    </li>
-                    <li>
-                        <a href="penalties.php"><i class="fa fa-exclamation-triangle fa-fw"></i> Penalties</a>
-                    </li>
-                    <li>
-                        <a href="pods.php"><i class="fa fa-building fa-fw"></i> Pods Management </a>
+                        <a class="sidebar-nav-link" href="dashboard.php">
+                            <i class="fa fa-dashboard fa-fw"></i> Dashboard
+                        </a>
                     </li>
                     <li>
-                        <a class="active-menu" href="users.php"><i class="fa fa-users fa-fw"></i> User Management </a>
+                        <a class="sidebar-nav-link" href="penalties.php">
+                            <i class="fa fa-exclamation-triangle fa-fw"></i> Penalties
+                        </a>
                     </li>
                     <li>
-                        <a href="analytics.php"><i class="fa fa-bar-chart-o fa-fw"></i> Analytics</a>
+                        <a class="sidebar-nav-link" href="pods.php">
+                            <i class="fa fa-building fa-fw"></i> Pods Management
+                        </a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
+                    <li>
+                        <a class="sidebar-nav-link active-menu" href="users.php">
+                            <i class="fa fa-users fa-fw"></i> User Management
+                        </a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
+                    <li>
+                        <a class="sidebar-nav-link" href="analytics.php">
+                            <i class="fa fa-bar-chart-o fa-fw"></i> Analytics
+                        </a>
+                    </li>
+                    <li class="mobile-only" style="display:none;">
+                        <a class="sidebar-nav-link" href="profile.php">
+                            <i class="fa fa-user-circle fa-fw"></i> Profile
+                        </a>
+                    </li>
+                    <li class="mobile-only" style="display:none;">
+                        <a class="sidebar-nav-link" href="logout.php">
+                            <i class="fa fa-sign-out fa-fw"></i> Log Out
+                        </a>
                     </li>
                 </ul>
-            </div>
-        </nav>
-        <!-- /. NAV SIDE  -->
-        <div id="page-wrapper">
+            </nav>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main id="page-wrapper" class="mt-[60px] min-h-screen p-6 lg:p-8">
             <div id="page-inner">
-                <div class="row">
-                    <div class="col-md-12">
-                        <div style="border-bottom: 3px solid #ddd; padding-bottom: 15px; margin-bottom: 25px;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 400; color: #5a5a5a;">USER MANAGEMENT</h1>
+
+                <!-- Page Header -->
+                <div class="mb-8 pb-5 border-b border-gray-200">
+                    <h1 class="text-2xl font-semibold text-gray-700 tracking-tight">USER MANAGEMENT</h1>
+                </div>
+
+                <!-- Users Table Card -->
+                <div class="elevated-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h2 class="text-base font-semibold text-gray-800">ACCOUNT DELETION REQUESTS</h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="filter-controls flex flex-wrap gap-4 items-end mb-5">
+                            <div>
+                                <label for="filterStatusUsers" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</label>
+                                <select id="filterStatusUsers" class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 w-[160px]">
+                                    <option value="all">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="declined">Declined</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="completed">Completed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="filterDateUsers" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Date</label>
+                                <input type="text" id="filterDateUsers" placeholder="dd-mm-yyyy" autocomplete="off" class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 w-[160px]">
+                            </div>
+                            <div>
+                                <label for="searchUsernameUsers" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Search Username</label>
+                                <input type="text" id="searchUsernameUsers" placeholder="Enter username..." class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 w-[200px] placeholder-gray-300">
+                            </div>
+                            <button onclick="resetUsersFilters()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                                <i class="fa fa-refresh"></i> Reset
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full" id="dataTables-example">
+                                <colgroup>
+                                    <col style="width:18%;">
+                                    <col style="width:28%;">
+                                    <col style="width:20%;">
+                                    <col style="width:16%;">
+                                    <col style="width:18%;">
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Requested Date</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <!-- Deletion Request Records -->
+                                </tbody>
+                                <tbody id="noResultsBody" style="display:none;">
+                                    <tr>
+                                        <td colspan="5" class="empty-state text-center py-16 text-gray-700">
+                                            <i class="fa fa-search text-5xl block mb-4 opacity-20"></i>
+                                            No deletion requests found with the current filters
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-                <!-- /. ROW  -->
-                
-                <div class="row">
-                    <div class="col-md-12">
-                        <!-- Users Table -->
-                        <div class="panel panel-default">
-                            <div class="panel-heading">
-                                <h4>User Records</h4>
-                            </div>
-                            <div class="panel-body">
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-bordered table-hover" id="dataTables-example">
-                                        <thead>
-                                            <tr>
-                                                <th>Username</th>
-                                                <th>Email</th>
-                                                <th>Requested Date</th>
-                                                <th>Status</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="usersTableBody">
-                                            <!-- Deletion Request Records -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <!--End Users Table -->
-                    </div>
-                </div>
-                <!-- /. ROW  -->
+
             </div>
-        </div>
-        <!-- /. PAGE WRAPPER  -->
+        </main>
+        <!-- /. PAGE WRAPPER -->
+
     </div>
-    <!-- /. WRAPPER  -->
-    
+    <!-- /. WRAPPER -->
+
     <!-- Review Request Modal -->
     <div id="reviewModal" class="review-modal-overlay">
-        <div class="review-modal">
-            <div class="review-modal-header">
-                <h3>Review Account Deletion Request</h3>
+        <div class="relative bg-white rounded-2xl w-[90%] max-w-lg shadow-2xl modal-animate mx-auto my-auto" style="z-index:1;">
+            <!-- Modal Header -->
+            <div class="px-7 py-5 border-b border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-900">Review Account Deletion Request</h3>
             </div>
-            <div class="review-modal-body">
-                <p>Do you accept the request for Account Deletion?</p>
-                <div class="user-info">
-                    <strong>Username:</strong> <span id="modalUsername"></span><br>
-                    <strong>Email:</strong> <span id="modalEmail"></span><br>
-                    <strong>Requested Date:</strong> <span id="modalRequestedDate"></span><br>
-                    <strong>Request ID:</strong> <span id="modalRequestId"></span>
+
+            <!-- Modal Body -->
+            <div class="px-7 py-5 space-y-4">
+                <p class="text-sm text-gray-600">Do you accept the request for Account Deletion?</p>
+
+                <div class="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                    <div><span class="font-semibold text-gray-700">Username:</span> <span id="modalUsername" class="text-gray-600"></span></div>
+                    <div><span class="font-semibold text-gray-700">Email:</span> <span id="modalEmail" class="text-gray-600"></span></div>
+                    <div><span class="font-semibold text-gray-700">Requested Date:</span> <span id="modalRequestedDate" class="text-gray-600"></span></div>
+                    <div><span class="font-semibold text-gray-700">Request ID:</span> <span id="modalRequestId" class="text-gray-500 text-xs font-mono"></span></div>
                 </div>
-                <p class="email-notice" style="margin-top: 15px;">
-                    <strong>Note:</strong> If approved, the account deletion process will start immediately and take 30 days to complete. 
-                    If the user logs in during this period, the deletion will be cancelled automatically. 
+
+                <p class="text-xs text-gray-500 leading-relaxed">
+                    <strong class="text-gray-600">Note:</strong> If approved, the account deletion process will start immediately and take 30 days to complete.
+                    If the user logs in during this period, the deletion will be cancelled automatically.
                     Bookings and penalties records will be retained for analytics purposes.
                 </p>
-                <p class="email-notice">An email notification will be sent to the user regarding your decision.</p>
+                <p class="text-xs text-gray-400 italic">An email notification will be sent to the user regarding your decision.</p>
             </div>
-            <div class="review-modal-footer">
-                <button class="btn-decline" onclick="declineTermination()">No - Decline Request</button>
-                <button class="btn-accept" onclick="acceptTermination()">Yes - Accept Request</button>
+
+            <!-- Modal Footer -->
+            <div class="px-7 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-100 flex justify-end gap-3">
+                <button onclick="declineTermination()"
+                    class="px-5 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0">
+                    No — Decline Request
+                </button>
+                <button onclick="acceptTermination()"
+                    class="px-5 py-2.5 text-sm font-semibold bg-green-600 hover:bg-green-700 text-white rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0">
+                    Yes — Accept Request
+                </button>
             </div>
         </div>
     </div>
-    
-    <!-- JS Scripts-->
-    <!-- jQuery Js -->
+
+    <!-- JS Scripts -->
     <script src="assets/js/jquery-1.10.2.js"></script>
-    <!-- Bootstrap Js -->
-    <script src="assets/js/bootstrap.min.js"></script>
-    <!-- Metis Menu Js -->
-    <script src="assets/js/jquery.metisMenu.js"></script>
-    <!-- DATA TABLE SCRIPTS -->
+    <script src="assets/js/tailwind-selects.js"></script>
     <script src="assets/js/dataTables/jquery.dataTables.js"></script>
-    <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
         var dataTable;
         var supabase = null;
@@ -543,12 +444,13 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         var deletionRequestsData = []; // Always keep as array
         var usersMap = {}; // Map of user_id to user info (username, email)
         var currentReviewRequest = null;
-        
+        var usersDatePicker = null;
+
         // Ensure deletionRequestsData is always an array (defensive programming)
         if (!Array.isArray(deletionRequestsData)) {
             deletionRequestsData = [];
         }
-        
+
         // Initialize Supabase and load deletion requests
         document.addEventListener('DOMContentLoaded', async function() {
             // Initialize Supabase
@@ -559,7 +461,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 return;
             }
             supabase = createClient(window.__SUPABASE__.url, window.__SUPABASE__.anonKey);
-            
+
             // Check if user is logged in
             const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
             if (sessionError || !sessionData?.session) {
@@ -567,13 +469,18 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 window.location.href = '../login.php';
                 return;
             }
-            
+
             currentUser = sessionData.session.user;
-            
+
             // Load deletion requests and user info
             await loadDeletionRequests();
+            initUsersDateFilterPicker();
+
+            $('#filterStatusUsers').on('change', function() { applyUsersFilters(); });
+            $('#filterDateUsers').on('change', function() { applyUsersFilters(); });
+            $('#searchUsernameUsers').on('keyup', function() { applyUsersFilters(); });
         });
-        
+
         // Load deletion requests from database via PHP endpoint (uses service key, bypasses RLS)
         async function loadDeletionRequests() {
             try {
@@ -584,16 +491,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Failed to fetch deletion requests. Status:', response.status, 'Response:', errorText);
                     throw new Error('Failed to fetch deletion requests: ' + response.statusText);
                 }
-                
+
                 const data = await response.json();
                 console.log('Deletion requests API response:', data);
-                
+
                 // Ensure requests is an array - defensive validation
                 if (!data) {
                     console.error('No data received from API');
@@ -627,16 +534,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     // Valid array
                     deletionRequestsData = data.requests;
                 }
-                
+
                 // Final safety check - ensure it's definitely an array
                 if (!Array.isArray(deletionRequestsData)) {
                     console.error('deletionRequestsData is still not an array after validation. Forcing to empty array.');
                     deletionRequestsData = [];
                 }
-                
+
                 console.log('Loaded deletion requests:', deletionRequestsData.length, 'requests');
                 console.log('Deletion requests data type:', typeof deletionRequestsData, 'Is array:', Array.isArray(deletionRequestsData));
-                
+
                 // Get unique user IDs (only if we have valid array data)
                 var userIds = [];
                 if (Array.isArray(deletionRequestsData) && deletionRequestsData.length > 0) {
@@ -652,20 +559,20 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         userIds = [];
                     }
                 }
-                
+
                 console.log('User IDs to fetch:', userIds.length, 'user IDs');
-                
+
                 // Load user info for all user IDs
                 if (userIds.length > 0) {
                     await loadUsersInfo(userIds);
                 }
-                
+
                 // Populate table
                 populateUsersTable();
-                
+
                 // Initialize or refresh DataTable
                 initializeDataTable();
-                
+
             } catch (error) {
                 console.error('Error in loadDeletionRequests:', error);
                 console.error('Error stack:', error.stack);
@@ -675,7 +582,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 initializeDataTable();
             }
         }
-        
+
         // Load user info from Supabase Auth via PHP endpoint
         async function loadUsersInfo(userIds) {
             try {
@@ -688,16 +595,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         user_ids: userIds
                     })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Failed to fetch user info: ' + response.statusText);
                 }
-                
+
                 const data = await response.json();
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                
+
                 usersMap = data.users || {};
                 console.log('Loaded user info for', Object.keys(usersMap).length, 'users');
             } catch (error) {
@@ -705,36 +612,37 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 // Continue even if user info fails to load
             }
         }
-        
+
         // Populate users table with deletion requests
         function populateUsersTable() {
             var tbody = $('#usersTableBody');
             tbody.empty();
-            
+
             // Safety check - ensure deletionRequestsData is an array
             if (!Array.isArray(deletionRequestsData)) {
                 console.error('populateUsersTable: deletionRequestsData is not an array:', typeof deletionRequestsData);
                 deletionRequestsData = [];
             }
-            
+
             if (deletionRequestsData.length === 0) {
-                tbody.append('<tr><td colspan="5" style="text-align: center; padding: 20px;">No account deletion requests found.</td></tr>');
+                tbody.append('<tr><td colspan="5" class="empty-state text-center py-16 text-gray-700"><i class="fa fa-search text-5xl block mb-4 opacity-20"></i>No account deletion requests found.</td></tr>');
+                $('#noResultsBody').hide();
                 return;
             }
-            
+
             try {
                 deletionRequestsData.forEach(function(request) {
                 var userInfo = usersMap[request.user_id] || {};
                 var username = userInfo.username || 'User ' + (request.user_id ? request.user_id.substring(0, 8) : 'Unknown');
                 var email = userInfo.email || 'N/A';
-                
+
                 // Format requested date
                 var requestedDate = 'N/A';
                 if (request.requested_at) {
                     var date = new Date(request.requested_at);
                     requestedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 }
-                
+
                 // Get status text and class
                 var statusClass = 'status-' + request.status;
                 var statusText = '';
@@ -760,32 +668,91 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     default:
                         statusText = request.status;
                 }
-                
+
                 // Only show review button for pending requests
                 var actionButton = '';
                 if (request.status === 'pending') {
-                    actionButton = '<button class="btn btn-sm btn-primary" onclick="reviewRequest(\'' + request.id + '\')"><i class="fa fa-search"></i> Review Request</button>';
+                    actionButton = '<button class="inline-flex items-center gap-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors" onclick="reviewRequest(\'' + request.id + '\')"><i class="fa fa-search"></i> Review Request</button>';
                 } else {
-                    actionButton = '<span style="color: #999; font-style: italic;">No action available</span>';
+                    actionButton = '<span style="color: #9ca3af; font-style: italic; font-size: 13px;">No action available</span>';
                 }
-                
-                var row = '<tr data-request-id="' + request.id + '">' +
+
+                var requestedDateOnly = request.requested_at ? request.requested_at.substring(0, 10) : '';
+                var row = '<tr data-request-id="' + request.id + '" data-status="' + escapeHtml(request.status || '') + '" data-date="' + escapeHtml(requestedDateOnly) + '" data-username="' + escapeHtml((username || '').toLowerCase()) + '">' +
                     '<td>' + escapeHtml(username) + '</td>' +
                     '<td>' + escapeHtml(email) + '</td>' +
                     '<td>' + requestedDate + '</td>' +
                     '<td class="status-cell"><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
                     '<td>' + actionButton + '</td>' +
                     '</tr>';
-                
+
                 tbody.append(row);
                 });
             } catch (forEachError) {
                 console.error('Error in populateUsersTable forEach:', forEachError);
                 console.error('deletionRequestsData:', deletionRequestsData);
-                tbody.append('<tr><td colspan="5" style="text-align: center; padding: 20px; color: red;">Error loading deletion requests. Please check console.</td></tr>');
+                tbody.append('<tr><td colspan="5" class="empty-state text-center py-10 text-red-500">Error loading deletion requests. Please check console.</td></tr>');
             }
+            $('#noResultsBody').hide();
         }
-        
+
+        function initUsersDateFilterPicker() {
+            if (typeof flatpickr === 'undefined') return;
+            if (usersDatePicker) return;
+            usersDatePicker = flatpickr('#filterDateUsers', {
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'd-m-Y',
+                altInputClass: 'px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 w-[160px]',
+                monthSelectorType: 'static',
+                disableMobile: true,
+                allowInput: false,
+                onChange: function() { applyUsersFilters(); }
+            });
+        }
+
+        function applyUsersFilters() {
+            var statusFilter = $('#filterStatusUsers').val();
+            var dateFilter = $('#filterDateUsers').val();
+            var searchText = $('#searchUsernameUsers').val().toLowerCase().trim();
+
+            var wasDataTableActive = false;
+            if (dataTable) { try { dataTable.fnDestroy(); dataTable = null; wasDataTableActive = true; } catch (e) {} }
+
+            $('#usersTableBody tr').show();
+            var totalRows = $('#usersTableBody tr').length;
+
+            if (statusFilter !== 'all') {
+                $('#usersTableBody tr').each(function() {
+                    if ($(this).attr('data-status') !== statusFilter) $(this).hide();
+                });
+            }
+            if (dateFilter !== '') {
+                $('#usersTableBody tr:visible').each(function() {
+                    if ($(this).attr('data-date') !== dateFilter) $(this).hide();
+                });
+            }
+            if (searchText !== '') {
+                $('#usersTableBody tr:visible').each(function() {
+                    if ($(this).find('td:first').text().toLowerCase().indexOf(searchText) === -1) $(this).hide();
+                });
+            }
+
+            var visibleCount = $('#usersTableBody tr:visible').length;
+            if (visibleCount === 0 && totalRows > 0) { $('#noResultsBody').show(); } else { $('#noResultsBody').hide(); }
+            if (wasDataTableActive && visibleCount > 0) { setTimeout(function() { initializeDataTable(); }, 100); }
+        }
+
+        function resetUsersFilters() {
+            $('#filterStatusUsers').val('all');
+            if (usersDatePicker) { usersDatePicker.clear(); } else { $('#filterDateUsers').val(''); }
+            $('#searchUsernameUsers').val('');
+            if (dataTable) { try { dataTable.fnDestroy(); dataTable = null; } catch (e) {} }
+            $('#usersTableBody tr').show();
+            $('#noResultsBody').hide();
+            if ($('#usersTableBody tr').length > 0) { setTimeout(function() { initializeDataTable(); }, 100); }
+        }
+
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
             if (!text) return '';
@@ -798,7 +765,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             };
             return text.replace(/[&<>"']/g, function(m) { return map[m]; });
         }
-        
+
         // Review deletion request
         function reviewRequest(requestId) {
             // Find request data
@@ -807,46 +774,46 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 alert('Request not found.');
                 return;
             }
-            
+
             // Get user info
             var userInfo = usersMap[request.user_id] || {};
             var username = userInfo.username || 'User ' + (request.user_id ? request.user_id.substring(0, 8) : 'Unknown');
             var email = userInfo.email || 'N/A';
-            
+
             // Format requested date
             var requestedDate = 'N/A';
             if (request.requested_at) {
                 var date = new Date(request.requested_at);
                 requestedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
-            
+
             // Store current request being reviewed
             currentReviewRequest = requestId;
-            
+
             // Populate modal with request info
             $('#modalUsername').text(username);
             $('#modalEmail').text(email);
             $('#modalRequestedDate').text(requestedDate);
             $('#modalRequestId').text(requestId);
-            
+
             // Show modal
             $('#reviewModal').addClass('active');
             $('body').css('overflow', 'hidden');
         }
-        
+
         function closeReviewModal() {
             $('#reviewModal').removeClass('active');
             $('body').css('overflow', '');
             currentReviewRequest = null;
         }
-        
+
         // Accept deletion request
         async function acceptTermination() {
             if (!currentReviewRequest || !currentUser) {
                 alert('No request selected or user not logged in.');
                 return;
             }
-            
+
             try {
                 // Update request status to approved (which will set it to in_progress)
                 const response = await fetch('update_deletion_request.php', {
@@ -861,35 +828,35 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         admin_notes: 'Request approved by administrator'
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok || data.error) {
                     throw new Error(data.error || 'Failed to update deletion request');
                 }
-                
+
                 // Close modal
                 closeReviewModal();
-                
+
                 // Show confirmation
                 alert('Request accepted! The account deletion process has started and will take 30 days to complete.\n\nIf the user logs in during this period, the deletion will be cancelled automatically.\n\nAn email notification has been sent to the user.');
-                
+
                 // Reload the page after alert is dismissed
                 window.location.reload();
-                
+
             } catch (error) {
                 console.error('Error accepting termination:', error);
                 alert('Failed to accept request: ' + (error.message || error));
             }
         }
-        
+
         // Decline deletion request
         async function declineTermination() {
             if (!currentReviewRequest || !currentUser) {
                 alert('No request selected or user not logged in.');
                 return;
             }
-            
+
             try {
                 // Update request status to declined
                 const response = await fetch('update_deletion_request.php', {
@@ -904,28 +871,28 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         admin_notes: 'Request declined by administrator'
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok || data.error) {
                     throw new Error(data.error || 'Failed to update deletion request');
                 }
-                
+
                 // Close modal
                 closeReviewModal();
-                
+
                 // Show confirmation
                 alert('Request declined. The user status has been updated to "Declined".\n\nAn email notification has been sent to the user.');
-                
+
                 // Reload the page after alert is dismissed
                 window.location.reload();
-                
+
             } catch (error) {
                 console.error('Error declining termination:', error);
                 alert('Failed to decline request: ' + (error.message || error));
             }
         }
-        
+
         // Initialize DataTable
         function initializeDataTable() {
             // Destroy existing DataTable if it exists
@@ -937,7 +904,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 }
                 dataTable = null;
             }
-            
+
             // Wait a bit for DOM to update
             setTimeout(function() {
                 if ($('#dataTables-example').length) {
@@ -947,8 +914,12 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         try {
                             dataTable = $('#dataTables-example').dataTable({
                                 "order": [[ 2, "desc" ]], // Sort by requested date (newest first)
-                                "pageLength": 10,
+                                "paging": false,
+                                "searching": false,
+                                "info": false,
+                                "autoWidth": false,
                                 "columnDefs": [
+                                    { "orderable": true, "targets": [0, 1, 2, 3] },
                                     { "orderable": false, "targets": 4 } // Disable sorting on Actions column
                                 ]
                             });
@@ -959,7 +930,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 }
             }, 100);
         }
-        
+
         // Force reset sidebar state on page load and browser back/forward
         function resetSidebar() {
             $('.navbar-side').removeClass('in');
@@ -968,22 +939,22 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             $('#sidebar-overlay').remove();
             $('body').css('overflow', '');  // Reset body overflow
         }
-        
+
         // Close sidebar before leaving page
         $(window).on('beforeunload unload pagehide', function() {
             resetSidebar();
         });
-        
+
         $(document).ready(function () {
             // Reset sidebar state on page load - with delay to ensure DOM is ready
             setTimeout(function() {
                 resetSidebar();
             }, 100);
-            
+
             // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {
                 $('.navbar-side').toggleClass('in');
-                
+
                 // Add/remove overlay
                 if ($('.navbar-side').hasClass('in')) {
                     if (!$('#sidebar-overlay').length) {
@@ -993,13 +964,13 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     $('#sidebar-overlay').remove();
                 }
             });
-            
+
             // Close sidebar when clicking overlay
             $(document).on('click', '#sidebar-overlay', function() {
                 $('.navbar-side').removeClass('in');
                 $(this).remove();
             });
-            
+
             // Close sidebar when clicking a link on mobile/tablet
             $('.navbar-side a').on('click', function() {
                 if ($(window).width() <= 991) {
@@ -1008,7 +979,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 }
             });
         });
-        
+
         // Handle browser back/forward button - reset sidebar
         window.addEventListener('pageshow', function(event) {
             // Always reset on pageshow, whether from cache or not
@@ -1016,21 +987,21 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 resetSidebar();
             }, 50);
         });
-        
+
         // Additional reset on window load
         window.addEventListener('load', function() {
             setTimeout(function() {
                 resetSidebar();
             }, 100);
         });
-        
+
         // Close modal when clicking outside of it
         $(document).on('click', '#reviewModal', function(e) {
             if (e.target.id === 'reviewModal') {
                 closeReviewModal();
             }
         });
-        
+
         // Close modal with Escape key
         $(document).on('keydown', function(e) {
             if (e.key === 'Escape' && $('#reviewModal').hasClass('active')) {
@@ -1038,7 +1009,11 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             }
         });
     </script>
-    <!-- Custom Js -->
-    <script src="assets/js/custom-scripts.js"></script>
 </body>
 </html>
+
+
+
+
+
+

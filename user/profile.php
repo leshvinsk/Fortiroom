@@ -28,7 +28,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FORTIROOM - A Smart Space Management System</title>
+    <title>FORTIROOM | Intelligent Space Access Platform</title>
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
     <!-- Bootstrap Styles-->
     <link href="assets/css/bootstrap.css" rel="stylesheet" />
