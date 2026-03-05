@@ -349,8 +349,8 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     <div>
                         <h1 class="text-2xl font-semibold text-gray-800 tracking-tight">SYSTEM ANALYTICS</h1>
                     </div>
-                    <button onclick="printAnalytics()"
-                        class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0">
+                    <button id="analyticsPrintBtn" onclick="printAnalytics()" disabled
+                        class="inline-flex items-center gap-2 bg-gray-100 text-gray-400 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all cursor-not-allowed">
                         <i class="fa fa-print"></i> Print
                     </button>
                 </div>
@@ -1043,6 +1043,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         function initializeChart(data, hasData, typeFilter) {
             // If no data, show message instead of chart
             if (hasData === false) {
+                $('.morris-hover').hide();
                 $('#analytics-chart').hide();
                 $('#chart-legend').hide();
                 $('#no-chart-data').show();
@@ -1184,6 +1185,35 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 $('#analytics-chart svg .data-label').remove();
                 addDataLabels();
             }, 600);  // Increased timeout to ensure chart is fully rendered
+
+            // Morris occasionally leaves the hover tooltip visible after pointer exits chart/card.
+            $('#analytics-chart').off('.morrisHoverCleanup');
+            $('#analytics-chart').closest('.elevated-card').off('.morrisHoverCleanup');
+            $(document).off('mousemove.morrisHoverCleanup');
+            $('#analytics-chart').on('mouseleave.morrisHoverCleanup', function() {
+                $('.morris-hover').hide();
+            });
+            $('#analytics-chart').closest('.elevated-card').on('mouseleave.morrisHoverCleanup', function() {
+                $('.morris-hover').hide();
+            });
+            $(document).on('mousemove.morrisHoverCleanup', function(e) {
+                var chartEl = document.getElementById('analytics-chart');
+                if (!chartEl || $('#analytics-chart').is(':hidden')) {
+                    $('.morris-hover').hide();
+                    return;
+                }
+
+                var rect = chartEl.getBoundingClientRect();
+                var insideChart =
+                    e.clientX >= rect.left &&
+                    e.clientX <= rect.right &&
+                    e.clientY >= rect.top &&
+                    e.clientY <= rect.bottom;
+
+                if (!insideChart) {
+                    $('.morris-hover').hide();
+                }
+            });
         }
 
         function centerSingleSeriesBars(chartData, typeFilter) {
@@ -1766,6 +1796,21 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             });
         }
 
+        function setAnalyticsPrintButtonEnabled(enabled) {
+            var $btn = $('#analyticsPrintBtn');
+            if (!$btn.length) return;
+
+            if (enabled) {
+                $btn.prop('disabled', false)
+                    .removeClass('bg-gray-100 text-gray-400 cursor-not-allowed')
+                    .addClass('bg-green-600 hover:bg-green-700 text-white hover:-translate-y-0.5 hover:shadow-md active:translate-y-0');
+            } else {
+                $btn.prop('disabled', true)
+                    .removeClass('bg-green-600 hover:bg-green-700 text-white hover:-translate-y-0.5 hover:shadow-md active:translate-y-0')
+                    .addClass('bg-gray-100 text-gray-400 cursor-not-allowed');
+            }
+        }
+
         function applyAnalyticsFilters() {
             var typeFilter = $('#filterByType').val();
             var parameter = $('#filterByParameter').val();
@@ -1949,17 +1994,18 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             console.log('Filtered chart data:', filteredChartData);
             console.log('Has data:', hasData);
 
-            // Update chart - pass hasData flag for month, quarterly, and date parameters
-            // For monthly view, always show chart even if hasData is false (to show all 12 months)
+            // Update chart - use a consistent "No Data" state across all parameters
             var showNoData = false;
             if (parameter === 'date' || parameter === 'quarterly') {
                 showNoData = !hasData;
             } else if (parameter === 'month') {
-                // For monthly, always show chart (even if all zeros) to display all 12 months
-                showNoData = false;
+                showNoData = !hasData;
             }
 
             initializeChart(filteredChartData, !showNoData, typeFilter);
+
+            // Enable print as soon as filters are successfully applied and chart is rendered
+            setAnalyticsPrintButtonEnabled(true);
 
             // Repopulate table with all records first, then filter
             populateRecordsTable();
@@ -1978,6 +2024,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
             // Filter table data based on type and time period
             filterTableByType(typeFilter, showNoData, parameter);
+
         }
 
         function filterTableByType(typeFilter, forceNoData, parameter) {
@@ -2055,6 +2102,8 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             $('#filterByType').val('');
             $('#filterByParameter').val('');
             updateDynamicFilter();
+            setAnalyticsPrintButtonEnabled(false);
+            $('.morris-hover').hide();
 
             // Hide chart, legend and table data
             $('#analytics-chart').hide();
@@ -2280,6 +2329,8 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
         // Print Analytics Function
         function printAnalytics() {
+            if ($('#analyticsPrintBtn').prop('disabled')) return;
+
             // Create a new window for printing
             var printWindow = window.open('', '_blank');
 

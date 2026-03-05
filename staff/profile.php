@@ -140,13 +140,32 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             position: absolute;
             right: 14px;
             bottom: 13px;
+            width: 22px;
+            height: 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
             color: #9ca3af;
-            font-size: 15px;
+            background: transparent;
+            border: 0;
+            padding: 0;
             transition: color 0.2s;
             z-index: 10;
         }
-        .toggle-password:hover { color: #16a34a; }
+        .toggle-password svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .toggle-password .icon-visible { display: none; }
+        .toggle-password .icon-hidden { display: block; }
+        .toggle-password.is-revealing .icon-visible { display: block; }
+        .toggle-password.is-revealing .icon-hidden { display: none; }
+        .toggle-password:hover { color: #6b7280; }
 
         /* Password input right padding to avoid overlap with eye icon */
         .pwd-input { padding-right: 42px !important; }
@@ -321,7 +340,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                             </label>
                             <input type="password" id="currentPassword" placeholder="Enter your current password"
                                 class="pwd-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all" required>
-                            <i class="fa fa-eye-slash toggle-password" data-target="currentPassword"></i>
+                            <button type="button" class="toggle-password" data-target="currentPassword" aria-label="Press and hold to view current password" title="Press and hold to view">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon-hidden h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="icon-visible h-5 w-5" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                            </button>
                         </div>
 
                         <div class="form-group-update">
@@ -330,7 +358,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                             </label>
                             <input type="password" id="newPassword" placeholder="Enter new password (min. 8 characters)"
                                 class="pwd-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all" required>
-                            <i class="fa fa-eye-slash toggle-password" data-target="newPassword"></i>
+                            <button type="button" class="toggle-password" data-target="newPassword" aria-label="Press and hold to view new password" title="Press and hold to view">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon-hidden h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="icon-visible h-5 w-5" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                            </button>
                         </div>
 
                         <div class="form-group-update">
@@ -339,7 +376,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                             </label>
                             <input type="password" id="confirmPassword" placeholder="Re-enter new password"
                                 class="pwd-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all" required>
-                            <i class="fa fa-eye-slash toggle-password" data-target="confirmPassword"></i>
+                            <button type="button" class="toggle-password" data-target="confirmPassword" aria-label="Press and hold to view confirm password" title="Press and hold to view">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon-hidden h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="icon-visible h-5 w-5" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                            </button>
                         </div>
 
                     </div>
@@ -655,23 +701,48 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             }
         });
 
-        // Toggle password visibility
-        $(document).on('click', '.toggle-password', function() {
-            var targetId = $(this).attr('data-target');
-            var passwordInput = $('#' + targetId);
+        function showPasswordForHold(btn) {
+            var targetId = btn.getAttribute('data-target');
+            var passwordInput = document.getElementById(targetId);
+            if (!passwordInput) return;
+            passwordInput.setAttribute('type', 'text');
+            btn.classList.add('is-revealing');
+        }
 
-            if (passwordInput.attr('type') === 'password') {
-                passwordInput.attr('type', 'text');
-                $(this).removeClass('fa-eye-slash').addClass('fa-eye');
-            } else {
-                passwordInput.attr('type', 'password');
-                $(this).removeClass('fa-eye').addClass('fa-eye-slash');
+        function hidePasswordForHold(btn) {
+            var targetId = btn.getAttribute('data-target');
+            var passwordInput = document.getElementById(targetId);
+            if (!passwordInput) return;
+            passwordInput.setAttribute('type', 'password');
+            btn.classList.remove('is-revealing');
+        }
+
+        // Press-and-hold reveal behavior (mouse, touch, keyboard hold)
+        $(document).on('mousedown touchstart', '.toggle-password', function(e) {
+            e.preventDefault();
+            showPasswordForHold(this);
+        });
+        $(document).on('mouseup mouseleave touchend touchcancel', '.toggle-password', function() {
+            hidePasswordForHold(this);
+        });
+        $(document).on('keydown', '.toggle-password', function(e) {
+            if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                showPasswordForHold(this);
+            }
+        });
+        $(document).on('keyup', '.toggle-password', function(e) {
+            if (e.key === ' ' || e.key === 'Enter') {
+                hidePasswordForHold(this);
             }
         });
 
     </script>
 </body>
 </html>
+
+
+
 
 
 
