@@ -30,8 +30,22 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Reset Password - FORTIROOM</title>
     <link rel="icon" href="images/FYP_Logo_small.png" type="image/icon type">
-    <link rel="stylesheet" href="assets/assets_customer/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Poppins', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         window.__SUPABASE__ = {
@@ -39,14 +53,327 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             anonKey: "<?php echo htmlspecialchars($SUPABASE_ANON_KEY, ENT_QUOTES, 'UTF-8'); ?>"
         };
     </script>
-    <style>
-        /* Minimal, reuse your existing styles if preferred */
-        .reset-container { max-width: 420px; margin: 8vh auto; background: rgba(255,255,255,0.9); padding: 24px; border-radius: 12px; }
-        .reset-container h2 { margin: 0 0 12px 0; }
-        .reset-container .input-wrap { margin: 12px 0; }
-        .reset-container input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ddd; }
-        .reset-container button { margin-top: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: #111827; color: #fff; cursor: pointer; }
-        .reset-container .note { color: #6b7280; font-size: 12px; margin-top: 8px; }
+    <style type="text/tailwindcss">
+        @layer base {
+            *,
+            *::before,
+            *::after {
+                @apply box-border m-0 p-0;
+            }
+
+            body,
+            input {
+                @apply font-sans;
+            }
+
+            body {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+
+            ::-webkit-scrollbar {
+                display: none;
+            }
+        }
+
+        @layer components {
+            .back-video {
+                @apply fixed inset-0 w-screen h-screen pointer-events-none;
+                object-fit: cover;
+                object-position: center;
+                filter: brightness(0.4);
+            }
+
+            main {
+                @apply w-full min-h-screen overflow-hidden p-8 flex items-center justify-center;
+            }
+
+            .box {
+                @apply relative w-full max-w-[900px] h-[580px] bg-white rounded-[2.5rem];
+                opacity: 0.87;
+                box-shadow: 0 60px 40px -30px rgba(0, 0, 0, 0.27);
+            }
+
+            .inner-box {
+                @apply absolute top-1/2 left-1/2;
+                width: calc(100% - 3.6rem);
+                height: calc(100% - 3.6rem);
+                transform: translate(-50%, -50%);
+            }
+
+            .forms-wrap {
+                @apply absolute top-0 left-0 h-full w-[60%] grid;
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr;
+            }
+
+            form {
+                @apply w-full max-w-[320px] h-full mx-auto flex flex-col justify-center;
+                grid-column: 1 / 2;
+                grid-row: 1 / 2;
+                padding: 0;
+                padding-top: 0.5rem;
+                gap: 0.7rem;
+            }
+
+            .logo {
+                @apply flex items-center;
+            }
+
+            .heading {
+                margin: 2rem 0;
+            }
+
+            .heading h2 {
+                @apply text-[1.9rem] font-semibold text-black;
+                margin-bottom: 0.2rem;
+                margin-top: 0;
+            }
+
+            .heading p {
+                @apply text-[0.85rem] font-normal;
+                color: #555;
+            }
+
+            .actual-form {
+                @apply flex flex-col;
+                gap: 0.15rem;
+            }
+
+            .input-wrap {
+                @apply relative h-[35px];
+                margin-bottom: 1.3rem;
+            }
+
+            .input-field {
+                @apply absolute w-full h-full bg-transparent border-0 outline-none text-[0.95rem];
+                border-bottom: 1px solid #000000;
+                padding: 0;
+                color: #151111;
+            }
+
+            .pwd-input {
+                padding-right: 42px !important;
+            }
+
+            label {
+                @apply absolute left-0 top-1/2 text-[0.95rem] text-black pointer-events-none transition-all duration-300;
+                transform: translateY(-50%);
+            }
+
+            .input-field.active {
+                border-bottom-color: #6B9E78;
+            }
+
+            .input-field.active + label {
+                font-size: 0.75rem;
+                top: -2px;
+            }
+
+            .input-wrap .toggle-password {
+                @apply absolute inline-flex items-center justify-center cursor-pointer p-0 border-0 bg-transparent transition-colors duration-200;
+                right: 14px;
+                bottom: 13px;
+                width: 22px;
+                height: 22px;
+                color: #9ca3af;
+                z-index: 10;
+            }
+
+            .input-wrap .toggle-password svg {
+                width: 18px;
+                height: 18px;
+                stroke: currentColor;
+                fill: none;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+
+            .input-wrap .toggle-password .icon-visible {
+                display: none;
+            }
+
+            .input-wrap .toggle-password .icon-hidden {
+                display: block;
+            }
+
+            .input-wrap .toggle-password.is-revealing .icon-visible {
+                display: block;
+            }
+
+            .input-wrap .toggle-password.is-revealing .icon-hidden {
+                display: none;
+            }
+
+            .input-wrap .toggle-password:hover {
+                color: #6b7280;
+            }
+
+            .input-wrap .password-strength-text {
+                @apply absolute top-1/2 pointer-events-none uppercase bg-white rounded-[3px];
+                right: 42px;
+                transform: translateY(-50%);
+                font-size: 0.7rem;
+                font-weight: 600;
+                transition: color 0.3s ease;
+                z-index: 100;
+                letter-spacing: 0.5px;
+                padding: 2px 6px;
+            }
+
+            .input-wrap .password-strength-text.weak { color: #d9534f; }
+            .input-wrap .password-strength-text.fair { color: #f0ad4e; }
+            .input-wrap .password-strength-text.good { color: #5bc0de; }
+            .input-wrap .password-strength-text.strong { color: #2a5646; }
+
+            .sign-btn {
+                @apply inline-flex items-center justify-center w-full text-white border-0 cursor-pointer rounded-[0.8rem] text-[1rem] transition-colors duration-300;
+                gap: 0.5rem;
+                height: 40px;
+                background-color: #151111;
+                margin-bottom: 0.3rem;
+            }
+
+            .sign-btn:hover {
+                background-color: #6B9E78;
+            }
+
+            .carousel {
+                @apply absolute top-0 left-[60%] h-full w-[40%] bg-white overflow-hidden flex items-center justify-center;
+                opacity: 1;
+                border-radius: 2rem;
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+            }
+
+            .carousel-container {
+                @apply flex flex-col items-center justify-center w-full h-full;
+                padding-top: 70px;
+            }
+
+            .images-wrapper {
+                @apply flex items-center justify-center w-full;
+            }
+
+            .image {
+                @apply w-full;
+                opacity: 1;
+                transform: none;
+            }
+
+            .logo-centered {
+                padding-top: 0 !important;
+                max-width: 80% !important;
+                margin: 0 auto 10px auto !important;
+                display: block !important;
+            }
+
+            .text-slider {
+                @apply flex flex-col items-center justify-center text-center px-4 w-full;
+            }
+
+            .carousel-content {
+                @apply w-full text-center;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .carousel-content h3 {
+                @apply text-2xl font-semibold;
+                margin-bottom: 0.5rem;
+                color: #2a5646;
+            }
+
+            .carousel-content p {
+                font-size: 0.9rem;
+                margin-bottom: 1.5rem;
+                color: #555;
+            }
+
+            .carousel-btn {
+                @apply inline-flex items-center text-white font-medium rounded-md transition-all duration-300 relative border-0 cursor-pointer;
+                gap: 0.5rem;
+                padding: 10px 25px;
+                background-color: #2a5646;
+                font-size: 0.9rem;
+            }
+
+            .carousel-btn:hover {
+                background-color: #6B9E78;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            }
+
+            @media (max-width: 850px) {
+                .box {
+                    height: auto;
+                    max-width: 500px;
+                    overflow: hidden;
+                }
+
+                .inner-box {
+                    position: static;
+                    transform: none;
+                    width: revert;
+                    height: revert;
+                    padding: 1.2rem 1.5rem 1.25rem;
+                }
+
+                .forms-wrap {
+                    position: revert;
+                    width: 100%;
+                    height: auto;
+                }
+
+                form {
+                    max-width: revert;
+                    padding: 0.55rem 1.75rem 0.95rem;
+                }
+
+                .heading {
+                    margin: 0.2rem 0 0.95rem;
+                }
+
+                .input-wrap {
+                    margin-bottom: 1rem;
+                }
+
+                .carousel,
+                .images-wrapper {
+                    display: none;
+                }
+            }
+
+            @media (max-width: 530px) {
+                main {
+                    padding: 1rem;
+                }
+
+                .box {
+                    border-radius: 2rem;
+                }
+
+                .inner-box {
+                    padding: 0.8rem 1rem 0.9rem;
+                }
+
+                form {
+                    padding: 0.15rem 1.2rem 0.65rem;
+                }
+
+                .heading {
+                    margin: 0.05rem 0 0.8rem;
+                }
+
+                .input-wrap {
+                    margin-bottom: 0.85rem;
+                }
+
+                .sign-btn {
+                    height: 38px;
+                }
+            }
+        }
     </style>
 <?php /* Ensure there is no extra whitespace before closing head or body to preserve layout */ ?>
 </head>
@@ -62,19 +389,37 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     <div class="logo"></div>
                     <div class="heading">
                         <h2>Reset Your Password</h2>
-                        <h6>Let's Regain Your Access</h6>
+                        <p>Set a strong new password to secure your account.</p>
                     </div>
                     <div class="actual-form">
                         <div class="input-wrap">
-                            <input type="password" class="input-field" id="new_password" minlength="8" required />
+                            <input type="password" class="input-field pwd-input" id="new_password" minlength="8" required />
                             <label>New Password</label>
                             <span class="password-strength-text" id="strength_text_new"></span>
-                            <i class="fas fa-eye-slash toggle-password" data-target="new_password"></i>
+                            <button type="button" class="toggle-password" data-target="new_password" aria-label="Press and hold to view password" title="Press and hold to view">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon-hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="icon-visible" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                            </button>
                         </div>
                         <div class="input-wrap">
-                            <input type="password" class="input-field" id="confirm_password" minlength="8" required />
+                            <input type="password" class="input-field pwd-input" id="confirm_password" minlength="8" required />
                             <label>Confirm Password</label>
-                            <i class="fas fa-eye-slash toggle-password" data-target="confirm_password"></i>
+                            <button type="button" class="toggle-password" data-target="confirm_password" aria-label="Press and hold to view password" title="Press and hold to view">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon-hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="icon-visible" aria-hidden="true">
+                                    <path d="M4 12c1.8-3.1 4.5-4.8 8-4.8s6.2 1.7 8 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="12" cy="14.2" r="3.2" stroke="currentColor" stroke-width="2.2" />
+                                </svg>
+                            </button>
                         </div>
                         <button type="button" id="submit_reset" class="sign-btn"><i class="fas fa-key"></i> Update Password</button>
                     </div>
@@ -118,14 +463,52 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 });
             });
 
-            document.querySelectorAll('.toggle-password').forEach(icon => {
-                icon.addEventListener('click', function() {
-                    const target = document.getElementById(this.getAttribute('data-target'));
-                    if (!target) return;
-                    const isHidden = target.type === 'password';
-                    target.type = isHidden ? 'text' : 'password';
-                    this.classList.toggle('fa-eye', isHidden);
-                    this.classList.toggle('fa-eye-slash', !isHidden);
+            const toggleIcons = document.querySelectorAll('.toggle-password');
+
+            function showPasswordForHold(btn) {
+                const targetId = btn.getAttribute('data-target');
+                const passwordInput = document.getElementById(targetId);
+                if (!passwordInput) return;
+                passwordInput.type = 'text';
+                btn.classList.add('is-revealing');
+            }
+
+            function hidePasswordForHold(btn) {
+                const targetId = btn.getAttribute('data-target');
+                const passwordInput = document.getElementById(targetId);
+                if (!passwordInput) return;
+                passwordInput.type = 'password';
+                btn.classList.remove('is-revealing');
+            }
+
+            toggleIcons.forEach((icon) => {
+                icon.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    showPasswordForHold(this);
+                });
+
+                icon.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    showPasswordForHold(this);
+                }, { passive: false });
+
+                ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach((eventName) => {
+                    icon.addEventListener(eventName, function() {
+                        hidePasswordForHold(this);
+                    });
+                });
+
+                icon.addEventListener('keydown', function(e) {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        showPasswordForHold(this);
+                    }
+                });
+
+                icon.addEventListener('keyup', function(e) {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                        hidePasswordForHold(this);
+                    }
                 });
             });
 

@@ -36,16 +36,3 @@ data_btn.forEach((btn) => {
 
 const loginForm = document.getElementById('login');
 const registerForm = document.getElementById('register');
-const forgotForm = document.getElementById('forgot-password');
-const toggleLink = document.querySelector('.toggle');
-const dataLink = document.querySelector('.data');
-
-toggleLink.addEventListener('click', function (e) {
-    e.preventDefault();
-    loginForm.classList.toggle('active');
-    registerForm.classList.toggle('active');
-});
-dataLink.addEventListener('click', function (e) {
-  e.preventDefault();
-  forgotForm.classList.data('active');
-});
