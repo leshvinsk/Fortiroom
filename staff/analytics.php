@@ -308,7 +308,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     </li>
                     <li>
                         <a class="sidebar-nav-link" href="penalties.php">
-                            <i class="fa fa-exclamation-triangle fa-fw"></i> Penalties
+                            <i class="fa fa-gavel fa-fw"></i> Penalties
                         </a>
                     </li>
                     <li>

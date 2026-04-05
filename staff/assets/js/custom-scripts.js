@@ -11,7 +11,9 @@
         initFunction: function () {
             /*MENU 
             ------------------------------------*/
-            $('#main-menu').metisMenu();
+            if ($.fn.metisMenu && $('#main-menu').length > 0) {
+                $('#main-menu').metisMenu();
+            }
 			
             $(window).bind("load resize", function () {
                 if ($(this).width() < 768) {

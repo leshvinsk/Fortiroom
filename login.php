@@ -35,7 +35,7 @@ if ($SUPABASE_URL && $SUPABASE_SERVICE_KEY && $ADMIN_EMAIL && $ADMIN_PASSWORD &&
         'email' => $ADMIN_EMAIL,
         'password' => $ADMIN_PASSWORD,
         'email_confirm' => true,
-        'user_metadata' => ['role' => 'admin']
+        'app_metadata' => ['role' => 'admin']
     ]);
     $ch2 = curl_init($createUrl);
     curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
@@ -1149,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const { data } = await supabase.auth.getSession();
             const user = data?.session?.user;
             if (user) {
-                const role = user.user_metadata?.role || 'user';
+                const role = user.app_metadata?.role || user.user_metadata?.role || 'user';
                 if (role === 'admin') {
                     window.location.href = 'staff/dashboard.php';
                 } else {
@@ -1358,7 +1358,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             const user = data.user;
-            const role = user?.user_metadata?.role || 'user';
+            const role = user?.app_metadata?.role || user?.user_metadata?.role || 'user';
             if (role === 'admin') {
                 window.location.href = 'staff/dashboard.php';
             } else {

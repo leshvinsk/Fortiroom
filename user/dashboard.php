@@ -31,17 +31,10 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FORTIROOM | Intelligent Space Access Platform</title>
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
-    <!-- Bootstrap Styles-->
-    <link href="assets/css/bootstrap.css" rel="stylesheet" />
+    <!-- Staff-side Tailwind shell -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!-- FontAwesome Styles-->
-    <link href="assets/css/font-awesome.css" rel="stylesheet" />
-    <!-- Custom Styles-->
-    <link href="assets/css/custom-styles.css" rel="stylesheet" />
-    <!-- Google Fonts-->
-    <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
-    <!-- TABLE STYLES-->
-    <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../staff/assets/css/tailwind.css">
     <!-- Supabase JS v2 -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -582,28 +575,23 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             width: 260px;
         }
         
-        #page-wrapper {
-            margin-left: 260px;
-            margin-top: 60px; /* Height of top navbar */
-            min-height: 100vh;
-            position: relative;
-            padding-bottom: 50px;
-        }
-        
         #wrapper {
             width: 100%;
             overflow-x: hidden;
             min-height: 100vh;
         }
-        
-        body {
-            overflow-x: hidden;
-            overflow-y: auto !important;
-            min-height: 100vh;
+        main#page-wrapper {
+            margin-left: 0 !important;
         }
         
-        html {
-            overflow-y: auto !important;
+        html,
+        body {
+            margin: 0;
+            overflow-x: hidden;
+        }
+        
+        body {
+            min-height: 100vh;
         }
         
         #page-inner {
@@ -612,7 +600,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         }
         
         /* Mobile and Tablet Responsive */
-        @media (max-width: 991px) {
+        @media (max-width: 1023px) {
             .booking-modal {
                 width: 95%;
                 max-width: none;
@@ -693,136 +681,466 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 border-bottom: 1px solid #ddd !important;
             }
             
-            .navbar-header {
-                background-color: #fff !important;
+        }
+        /* Staff-style Tailwind shell */
+        body {
+            font-family: 'Inter', sans-serif !important;
+            background: #f7f7f5 !important;
+        }
+        #wrapper {
+            min-height: 100vh;
+            background: #f7f7f5 !important;
+        }
+        .navbar-side {
+            transform: translateX(-260px);
+            transition: transform 0.3s ease;
+        }
+        @media (min-width: 1024px) {
+            .navbar-side { transform: translateX(0) !important; }
+            main#page-wrapper { margin-left: 260px !important; }
+            .navbar-top-links { display: flex !important; }
+            .mobile-only { display: none !important; }
+        }
+        .navbar-side.in { transform: translateX(0) !important; }
+        @media (max-width: 1023px) {
+            .navbar-side { background-color: #3a6b4d !important; }
+            main#page-wrapper { margin-left: 0 !important; width: 100% !important; }
+            .navbar-top-links { display: none !important; }
+            .mobile-only { display: block !important; }
+        }
+        body.mobile-shell .navbar-side { background-color: #3a6b4d !important; }
+        body.mobile-shell main#page-wrapper {
+            margin-left: 0 !important;
+            width: 100% !important;
+        }
+        body.mobile-shell .navbar-top-links { display: none !important; }
+        body.mobile-shell .mobile-only { display: block !important; }
+        body.mobile-shell #page-inner > .row:first-of-type > .col-md-12 > .page-title-row {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+        }
+        body.mobile-shell #page-inner > .row:first-of-type > .col-md-12 > .page-title-row > .create-booking-btn {
+            width: 100% !important;
+            justify-content: center !important;
+            margin-top: 15px !important;
+            font-size: 14px !important;
+            padding: 10px 16px !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .panel-body {
+            padding: 20px !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls > div,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .tw-select-root,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .form-control,
+        body.mobile-shell #filterStatus,
+        body.mobile-shell #filterPod,
+        body.mobile-shell #filterDate {
+            width: 100% !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .btn.btn-default {
+            width: 100% !important;
+            justify-content: center !important;
+        }
+        .sidebar-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.85) !important;
+            transition: all 0.15s ease;
+            text-decoration: none !important;
+        }
+        .sidebar-nav-link:hover {
+            color: #d3af37 !important;
+            background: rgba(255,255,255,0.08);
+            text-decoration: none !important;
+        }
+        .sidebar-nav-link.active-menu {
+            color: #d3af37 !important;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+            padding-left: 26px;
+        }
+        .sidebar-nav-link.active-menu::before {
+            content: "";
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 7px solid #d3af37;
+        }
+        .sidebar-nav-link i { width: 16px; text-align: center; }
+        #page-inner {
+            width: 100%;
+            margin: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+            min-height: auto !important;
+        }
+        .row,
+        .col-md-12 {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        .tw-select-root {
+            position: relative !important;
+            display: inline-block !important;
+            width: 100% !important;
+            vertical-align: top !important;
+        }
+        .tw-select-root > button {
+            width: 100% !important;
+        }
+        .tw-select-menu {
+            position: absolute !important;
+            top: calc(100% + 6px) !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 1000 !important;
+            margin: 0 !important;
+            padding: 8px 0 !important;
+            list-style: none !important;
+        }
+
+        /* Final staff-style inner UI parity */
+        .panel.panel-default {
+            background: #fff !important;
+            border: 1px solid #f3f4f6 !important;
+            border-radius: 16px !important;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
+            overflow: visible !important;
+            margin-bottom: 0 !important;
+        }
+        .panel-heading {
+            background: transparent !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            padding: 16px 24px !important;
+        }
+        .panel-heading h4 {
+            margin: 0 !important;
+            font-size: 0.875rem !important;
+            font-weight: 600 !important;
+            color: #374151 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+        }
+        .panel-body {
+            padding: 24px !important;
+            overflow: visible !important;
+        }
+        .filter-controls {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 16px !important;
+            align-items: flex-end !important;
+            margin-bottom: 20px !important;
+        }
+        .filter-controls > div {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .filter-controls label {
+            margin: 0 !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            color: #6b7280 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+        }
+        .filter-controls .form-control,
+        .create-booking-form-group input,
+        .create-booking-form-group select {
+            height: 42px !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 10px !important;
+            background: #fff !important;
+            color: #374151 !important;
+            box-shadow: none !important;
+            font-size: 14px !important;
+        }
+        .filter-controls .form-control:focus,
+        .create-booking-form-group input:focus,
+        .create-booking-form-group select:focus {
+            border-color: #16a34a !important;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12) !important;
+        }
+        .filter-controls .tw-select-root {
+            width: 180px !important;
+        }
+        #filterStatus,
+        #filterPod {
+            width: 180px !important;
+        }
+        #filterDate {
+            width: 170px !important;
+        }
+        .btn.btn-default {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            height: 42px !important;
+            padding: 0 16px !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            background: #f3f4f6 !important;
+            color: #4b5563 !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            box-shadow: none !important;
+        }
+        .btn.btn-default:hover {
+            background: #e5e7eb !important;
+            color: #374151 !important;
+        }
+        .table-responsive {
+            overflow-x: auto !important;
+            border: 0 !important;
+        }
+        table.dataTable,
+        #dataTables-example {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed;
+        }
+        #dataTables-example thead th,
+        table.dataTable thead th {
+            background: #f9fafb !important;
+            border-bottom: 2px solid #e5e7eb !important;
+            padding: 11px 16px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            color: #6b7280 !important;
+            white-space: nowrap !important;
+        }
+        #dataTables-example tbody td,
+        table.dataTable tbody td {
+            padding: 13px 16px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            font-size: 14px !important;
+            color: #374151 !important;
+            vertical-align: middle !important;
+            background: transparent !important;
+        }
+        #dataTables-example tbody tr:hover,
+        table.dataTable tbody tr:hover {
+            background: #f9fafb !important;
+        }
+        .status-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            padding: 3px 10px !important;
+            border-radius: 9999px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.03em !important;
+        }
+        .action-buttons {
+            gap: 10px !important;
+        }
+        .btn-view,
+        .btn-delete {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            min-width: 92px !important;
+            padding: 8px 14px !important;
+            border-radius: 10px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        .btn-view {
+            background: #f3f4f6 !important;
+            color: #374151 !important;
+        }
+        .btn-view:hover {
+            background: #e5e7eb !important;
+            color: #111827 !important;
+            box-shadow: none !important;
+        }
+        .btn-delete {
+            background: #dc2626 !important;
+            color: #fff !important;
+        }
+        .btn-delete:hover:not(.disabled):not(:disabled) {
+            background: #b91c1c !important;
+            box-shadow: 0 10px 18px rgba(185, 28, 28, 0.18) !important;
+        }
+        .create-booking-btn {
+            background: #16a34a !important;
+            color: #fff !important;
+            padding: 10px 18px !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.18) !important;
+        }
+        .create-booking-btn:hover {
+            background: #15803d !important;
+            color: #d3af37 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 10px 20px rgba(22, 163, 74, 0.2) !important;
+        }
+        .booking-modal-overlay,
+        .create-booking-modal-overlay {
+            background: rgba(0, 0, 0, 0.6) !important;
+            backdrop-filter: blur(4px);
+        }
+        .booking-modal,
+        .create-booking-modal {
+            border-radius: 20px !important;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22) !important;
+        }
+        .booking-modal-header {
+            padding: 22px 28px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+        }
+        .booking-modal-header h3 {
+            font-size: 20px !important;
+            color: #111827 !important;
+        }
+        .close-booking-modal {
+            width: 36px !important;
+            height: 36px !important;
+            border-radius: 10px !important;
+        }
+        .close-booking-modal:hover {
+            background: #f3f4f6 !important;
+        }
+        .booking-modal-body {
+            padding: 28px !important;
+        }
+        .booking-modal-footer {
+            padding: 18px 28px !important;
+            background: #f9fafb !important;
+            border-top: 1px solid #f3f4f6 !important;
+        }
+        .btn-modal-cancel,
+        .btn-modal-close {
+            border-radius: 12px !important;
+            padding: 11px 20px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
+        .btn-modal-cancel {
+            background: #fff !important;
+            color: #4b5563 !important;
+            border: 1px solid #d1d5db !important;
+        }
+        .btn-modal-cancel:hover {
+            background: #f3f4f6 !important;
+        }
+        .btn-modal-close {
+            background: #16a34a !important;
+            color: #fff !important;
+        }
+        .btn-modal-close:hover {
+            background: #15803d !important;
+        }
+
+        @media (max-width: 1023px) {
+            #page-inner > .row:first-of-type > .col-md-12 > .page-title-row {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+            }
+            #page-inner > .row:first-of-type > .col-md-12 > .page-title-row > .create-booking-btn {
                 width: 100% !important;
-                position: relative !important;
+                justify-content: center !important;
             }
-            
-            .navbar-toggle {
-                display: block !important;
-                position: absolute !important;
-                right: 15px !important;
-                top: 8px !important;
-                float: none !important;
-                margin: 0 !important;
-                background-color: #fff !important;
-                border: 1px solid #888 !important;
-                padding: 6px 10px !important;
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .panel-body {
+                padding: 20px !important;
             }
-            
-            .navbar-toggle .icon-bar {
-                background-color: #333 !important;
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
             }
-            
-            .navbar-brand {
-                float: none !important;
-                display: inline-block !important;
-                padding: 10px 15px !important;
-            }
-            
-            /* Force sidebar to start hidden - CSS takes precedence */
-            .navbar-default.navbar-side {
-                left: -260px !important;
-                transition: left 0.3s ease;
-                z-index: 999;
-                background-color: #1a2942 !important;
-                transform: translateX(0) !important;
-            }
-            
-            /* Only show when explicitly opened */
-            .navbar-default.navbar-side.in {
-                left: 0 !important;
-                transform: translateX(0) !important;
-            }
-            
-            #page-wrapper {
-                margin-left: 0 !important;
-                margin-top: 60px;
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls > div,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .tw-select-root,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .form-control,
+            #filterStatus,
+            #filterPod,
+            #filterDate {
                 width: 100% !important;
-                background-color: #f5f5f5 !important;
             }
-            
-            .navbar-top-links {
-                display: none !important;
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .form-control {
+                width: 100% !important;
             }
-            
-            .sidebar-collapse {
-                padding-top: 0;
-            }
-            
-            .sidebar-collapse .nav > li > a {
-                padding: 15px 15px 15px 25px;
-            }
-            
-            .mobile-only {
-                display: block !important;
-                border-top: 1px solid #2C5F7C;
-            }
-            
-            .mobile-only:first-of-type {
-                margin-top: 10px;
-            }
-            
-            #wrapper {
-                overflow-x: hidden !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            body {
-                background-color: #f5f5f5 !important;
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .btn.btn-default {
+                width: 100% !important;
+                justify-content: center !important;
             }
         }
     </style>
 </head>
-<body>
-    <div id="wrapper">
-    <nav class="navbar navbar-default top-navbar" role="navigation">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".sidebar-collapse">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <a class="navbar-brand" href="dashboard.php"><img src="../images/header_logo.png" width="150"></a>
+<body class="bg-[#f7f7f5] font-sans antialiased overflow-x-hidden">
+    <div id="wrapper" class="min-h-screen">
+        <header class="fixed top-0 left-0 right-0 z-50 h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+            <button class="navbar-toggle lg:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none" aria-label="Toggle navigation">
+                <span class="block w-5 h-px bg-current mb-[5px]"></span>
+                <span class="block w-5 h-px bg-current mb-[5px]"></span>
+                <span class="block w-5 h-px bg-current"></span>
+            </button>
+            <a href="dashboard.php" class="flex items-center">
+                <img src="../images/header_logo.png" class="h-9 w-auto" alt="Fortiroom">
+            </a>
+            <div class="navbar-top-links hidden items-center gap-1">
+                <a href="profile.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                    <i class="fa fa-user-circle"></i> Profile
+                </a>
+                <a href="logout.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                    <i class="fa fa-sign-out"></i> Log Out
+                </a>
             </div>
-            
-            <ul class="nav navbar-top-links navbar-right">
-                <li>
-                    <a href="profile.php"><i class="fa fa-user-circle"></i> Profile</a>
-                </li>
-                <li>
-                    <a href="logout.php"><i class="fa fa-sign-out"></i> Log Out</a>
-                </li>
-            </ul>
-        </nav>
-        <!--/. NAV TOP  -->
-        <nav class="navbar-default navbar-side" role="navigation">
-            <div class="sidebar-collapse">
-                <ul class="nav" id="main-menu">
+        </header>
+        <aside class="navbar-side fixed top-[60px] left-0 w-[260px] bottom-0 bg-[#1f3a26] overflow-y-auto z-40">
+            <nav class="sidebar-collapse py-5">
+                <ul class="space-y-1 px-3" id="main-menu">
                     <li>
-                        <a class="active-menu" href="dashboard.php"><i class="fa fa-calendar fa-fw"></i> Bookings</a>
+                        <a class="sidebar-nav-link active-menu" href="dashboard.php"><i class="fa fa-calendar fa-fw"></i> Bookings</a>
                     </li>
                     <li>
-                        <a href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a>
+                        <a class="sidebar-nav-link" href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
+                <li class="mobile-only" style="display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; margin-top:8px;">
+                        <a class="sidebar-nav-link" href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
+                    <li class="mobile-only" style="display:none;">
+                        <a class="sidebar-nav-link" href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
                     </li>
                 </ul>
-            </div>
-        </nav>
-        <!-- /. NAV SIDE  -->
-        <div id="page-wrapper">
+            </nav>
+        </aside>
+        <!-- MAIN CONTENT -->
+        <main id="page-wrapper" class="mt-[60px] min-h-screen p-6 lg:p-8">
             <div id="page-inner">
                 <div class="row">
                     <div class="col-md-12">
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #ddd; padding-bottom: 15px; margin-bottom: 25px; flex-wrap: wrap;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 400; color: #5a5a5a;">MY BOOKINGS</h1>
+                        <div class="page-title-row flex justify-between items-center border-b border-gray-200 pb-4 mb-6 flex-wrap gap-4">
+                            <h1 class="m-0 text-2xl font-semibold tracking-wide text-gray-700 uppercase">My Bookings</h1>
                             <button class="create-booking-btn" id="createBookingBtn" onclick="openCreateBookingModal()" disabled>
                                 <i class="fa fa-plus-circle"></i> Create a booking
                             </button>
@@ -886,9 +1204,9 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                                         </tbody>
                                         <tbody id="noResultsBody" style="display: none;">
                                             <tr>
-                                                <td colspan="7" style="text-align: center; padding: 40px; color: #999; font-size: 16px;">
-                                                    <i class="fa fa-search" style="font-size: 48px; display: block; margin-bottom: 15px; opacity: 0.3;"></i>
-                                                    No bookings found with the current filters
+                                                <td colspan="7" style="text-align: center; padding: 56px 24px; color: #6b7280; font-size: 16px;">
+                                                    <i id="bookingsEmptyIcon" class="fa fa-calendar" style="font-size: 48px; display: block; margin-bottom: 16px; opacity: 0.28;"></i>
+                                                    <span id="bookingsEmptyText">No Bookings Found</span>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -901,7 +1219,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 </div>
                 <!-- /. ROW  -->
             </div>
-        </div>
+        </main>
         <!-- /. PAGE WRAPPER  -->
     </div>
     <!-- /. WRAPPER  -->
@@ -1023,13 +1341,9 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
     <!-- JS Scripts-->
     <!-- jQuery Js -->
     <script src="assets/js/jquery-1.10.2.js"></script>
-    <!-- Bootstrap Js -->
-    <script src="assets/js/bootstrap.min.js"></script>
-    <!-- Metis Menu Js -->
-    <script src="assets/js/jquery.metisMenu.js"></script>
+    <script src="../staff/assets/js/tailwind-selects.js"></script>
     <!-- DATA TABLE SCRIPTS -->
     <script src="assets/js/dataTables/jquery.dataTables.js"></script>
-    <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
         var dataTable;
         var supabase;
@@ -1187,7 +1501,11 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 "order": [[ 2, "asc" ]],
                 "paging": false,
                 "searching": false,
-                "info": false
+                "info": false,
+                "language": {
+                    "emptyTable": "",
+                    "zeroRecords": ""
+                }
             });
             
             // Start refresh interval (10 seconds for real-time status updates)
@@ -1206,7 +1524,11 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     "order": [[ 2, "asc" ]],
                     "paging": false,
                     "searching": false,
-                    "info": false
+                    "info": false,
+                    "language": {
+                        "emptyTable": "",
+                        "zeroRecords": ""
+                    }
                 });
                 applyFilters(); // Reapply filters after refresh
             }, 10000); // Update every 10 seconds for real-time status simulation
@@ -1486,6 +1808,13 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         function populateBookingsTable() {
             var tbody = $('#bookingsTableBody');
             tbody.empty();
+
+            if (bookingsData.length === 0) {
+                updateBookingsEmptyState(false);
+                return;
+            }
+
+            $('#noResultsBody').hide();
             
             bookingsData.forEach(function(booking) {
                 var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut);
@@ -1524,6 +1853,16 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 
                 tbody.append(row);
             });
+        }
+
+        function updateBookingsEmptyState(usingFilters) {
+            $('#bookingsEmptyText').text(usingFilters ? 'No Bookings Found with Current Filter' : 'No Bookings Found');
+            $('#bookingsEmptyIcon').attr('class', 'fa fa-calendar');
+            $('#noResultsBody').show();
+        }
+
+        function hasActiveBookingFilters() {
+            return $('#filterStatus').val() !== 'all' || $('#filterPod').val() !== 'all' || $('#filterDate').val() !== '';
         }
         
         function applyFilters() {
@@ -1577,7 +1916,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             
             // Show/hide "no results" message
             if (visibleCount === 0) {
-                $('#noResultsBody').show();
+                updateBookingsEmptyState(hasActiveBookingFilters());
             } else {
                 $('#noResultsBody').hide();
             }
@@ -1589,9 +1928,13 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             $('#filterPod').val('all');
             $('#filterDate').val('');
             
-            // Show all rows and hide no results message
+            // Show all rows and restore the correct base empty state
             $('#bookingsTableBody tr').show();
-            $('#noResultsBody').hide();
+            if (bookingsData.length === 0) {
+                updateBookingsEmptyState(false);
+            } else {
+                $('#noResultsBody').hide();
+            }
             
             console.log('Filters reset - showing all rows');
         }
@@ -2284,7 +2627,11 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 "order": [[ 2, "asc" ]],
                 "paging": false,
                 "searching": false,
-                "info": false
+                "info": false,
+                "language": {
+                    "emptyTable": "",
+                    "zeroRecords": ""
+                }
             });
             
             // Close modal
@@ -2613,7 +2960,11 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                         "order": [[ 2, "asc" ]],
                         "paging": false,
                         "searching": false,
-                        "info": false
+                        "info": false,
+                        "language": {
+                            "emptyTable": "",
+                            "zeroRecords": ""
+                        }
                     });
                     
                     // Get current filter values
@@ -2637,25 +2988,23 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             }
         }
         
-        // Force reset sidebar state on page load and browser back/forward
         function resetSidebar() {
             $('.navbar-side').removeClass('in');
-            $('.navbar-side').css('left', '');  // Clear inline styles
-            $('.navbar-side').attr('style', '');  // Remove all inline styles
+            $('.navbar-side').css('left', '');
+            $('.navbar-side').attr('style', '');
             $('#sidebar-overlay').remove();
-            $('body').css('overflow', '');  // Reset body overflow
+            $('body').css('overflow', '');
         }
-        
-        // Close sidebar before leaving page
-        $(window).on('beforeunload unload pagehide', function() {
-            resetSidebar();
-        });
+
+        function syncDashboardShell() {
+            $('body').toggleClass('mobile-shell', $(window).width() < 1024);
+        }
+
+        $(window).on('beforeunload unload pagehide', function() { resetSidebar(); });
         
         $(document).ready(function () {
-            // Reset sidebar state on page load - with delay to ensure DOM is ready
-            setTimeout(function() {
-                resetSidebar();
-            }, 100);
+            setTimeout(function() { resetSidebar(); }, 100);
+            syncDashboardShell();
             
             // Set minimum date to today to disable past dates in calendar picker
             var today = new Date();
@@ -2665,32 +3014,26 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             var todayFormatted = year + '-' + month + '-' + day;
             $('#bookingDate').attr('min', todayFormatted);
             
-            // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {
                 $('.navbar-side').toggleClass('in');
-                
-                // Add/remove overlay
                 if ($('.navbar-side').hasClass('in')) {
                     if (!$('#sidebar-overlay').length) {
-                        $('body').append('<div id="sidebar-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998;"></div>');
+                        $('body').append('<div id="sidebar-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:39;"></div>');
                     }
-                } else {
-                    $('#sidebar-overlay').remove();
-                }
+                } else { $('#sidebar-overlay').remove(); }
             });
-            
-            // Close sidebar when clicking overlay
             $(document).on('click', '#sidebar-overlay', function() {
                 $('.navbar-side').removeClass('in');
                 $(this).remove();
             });
-            
-            // Close sidebar when clicking a link on mobile/tablet
             $('.navbar-side a').on('click', function() {
-                if ($(window).width() <= 991) {
+                if ($(window).width() < 1024) {
                     $('.navbar-side').removeClass('in');
                     $('#sidebar-overlay').remove();
                 }
+            });
+            $(window).on('resize', function() {
+                syncDashboardShell();
             });
             
             // Close booking modal when clicking outside
@@ -2718,20 +3061,8 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             });
         });
         
-        // Handle browser back/forward button - reset sidebar
-        window.addEventListener('pageshow', function(event) {
-            // Always reset on pageshow, whether from cache or not
-            setTimeout(function() {
-                resetSidebar();
-            }, 50);
-        });
-        
-        // Additional reset on window load
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                resetSidebar();
-            }, 100);
-        });
+        window.addEventListener('pageshow', function(event) { setTimeout(function() { resetSidebar(); }, 50); });
+        window.addEventListener('load', function() { setTimeout(function() { resetSidebar(); }, 100); });
     </script>
     <!-- Custom Js -->
     <script src="assets/js/custom-scripts.js"></script>

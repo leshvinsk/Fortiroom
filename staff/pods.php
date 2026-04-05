@@ -305,7 +305,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         <nav class="sidebar-collapse py-5">
             <ul id="main-menu" class="space-y-1 px-3">
                 <li><a class="sidebar-nav-link" href="dashboard.php"><i class="fa fa-dashboard fa-fw"></i> Dashboard</a></li>
-                <li><a class="sidebar-nav-link" href="penalties.php"><i class="fa fa-exclamation-triangle fa-fw"></i> Penalties</a></li>
+                <li><a class="sidebar-nav-link" href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a></li>
                 <li><a class="sidebar-nav-link active-menu" href="pods.php"><i class="fa fa-building fa-fw"></i> Pods Management</a></li>
                 <li><a class="sidebar-nav-link" href="users.php"><i class="fa fa-users fa-fw"></i> User Management</a></li>
                 <li><a class="sidebar-nav-link" href="analytics.php"><i class="fa fa-bar-chart-o fa-fw"></i> Analytics</a></li>

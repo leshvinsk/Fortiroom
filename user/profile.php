@@ -30,17 +30,10 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FORTIROOM | Intelligent Space Access Platform</title>
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
-    <!-- Bootstrap Styles-->
-    <link href="assets/css/bootstrap.css" rel="stylesheet" />
+    <!-- Staff-side Tailwind shell -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!-- FontAwesome Styles-->
-    <link href="assets/css/font-awesome.css" rel="stylesheet" />
-    <!-- Custom Styles-->
-    <link href="assets/css/custom-styles.css" rel="stylesheet" />
-    <!-- Google Fonts-->
-    <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
-    <!-- TABLE STYLES-->
-    <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../staff/assets/css/tailwind.css">
     <!-- Supabase JS v2 -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -388,7 +381,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
         
         #page-wrapper {
-            margin-left: 260px;
+            margin-left: 0;
             margin-top: 60px; /* Height of top navbar */
             min-height: 100vh;
             position: relative;
@@ -403,12 +396,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         
         body {
             overflow-x: hidden;
-            overflow-y: auto !important;
             min-height: 100vh;
-        }
-        
-        html {
-            overflow-y: auto !important;
         }
         
         #page-inner {
@@ -558,7 +546,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
         
         /* Mobile and Tablet Responsive */
-        @media (max-width: 991px) {
+        @media (max-width: 1023px) {
             .profile-fields-container {
                 border-radius: 0;
             }
@@ -641,86 +629,6 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             .navbar.navbar-default.top-navbar {
                 background-color: #fff !important;
                 border-bottom: 1px solid #ddd !important;
-            }
-            
-            .navbar-header {
-                background-color: #fff !important;
-                width: 100% !important;
-                position: relative !important;
-            }
-            
-            .navbar-toggle {
-                display: block !important;
-                position: absolute !important;
-                right: 15px !important;
-                top: 8px !important;
-                float: none !important;
-                margin: 0 !important;
-                background-color: #fff !important;
-                border: 1px solid #888 !important;
-                padding: 6px 10px !important;
-            }
-            
-            .navbar-toggle .icon-bar {
-                background-color: #333 !important;
-            }
-            
-            .navbar-brand {
-                float: none !important;
-                display: inline-block !important;
-                padding: 10px 15px !important;
-            }
-            
-            /* Force sidebar to start hidden - CSS takes precedence */
-            .navbar-default.navbar-side {
-                left: -260px !important;
-                transition: left 0.3s ease;
-                z-index: 999;
-                background-color: #1a2942 !important;
-                transform: translateX(0) !important;
-            }
-            
-            /* Only show when explicitly opened */
-            .navbar-default.navbar-side.in {
-                left: 0 !important;
-                transform: translateX(0) !important;
-            }
-            
-            #page-wrapper {
-                margin-left: 0 !important;
-                margin-top: 60px;
-                width: 100% !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            .navbar-top-links {
-                display: none !important;
-            }
-            
-            .sidebar-collapse {
-                padding-top: 0;
-            }
-            
-            .sidebar-collapse .nav > li > a {
-                padding: 15px 15px 15px 25px;
-            }
-            
-            .mobile-only {
-                display: block !important;
-                border-top: 1px solid #2C5F7C;
-            }
-            
-            .mobile-only:first-of-type {
-                margin-top: 10px;
-            }
-            
-            #wrapper {
-                overflow-x: hidden !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            body {
-                background-color: #f5f5f5 !important;
             }
             
             /* Danger Zone Mobile Styles */
@@ -814,56 +722,400 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             z-index: 10001 !important;
             pointer-events: none !important;
         }
+        /* Staff-style Tailwind shell */
+        body {
+            font-family: 'Inter', sans-serif !important;
+            background: #f7f7f5 !important;
+        }
+        #wrapper {
+            min-height: 100vh;
+            background: #f7f7f5 !important;
+        }
+        .navbar-side {
+            transform: translateX(-260px);
+            transition: transform 0.3s ease;
+        }
+        @media (min-width: 1024px) {
+            .navbar-side { transform: translateX(0) !important; }
+            #page-wrapper { margin-left: 260px !important; }
+            .navbar-top-links { display: flex !important; }
+            .mobile-only { display: none !important; }
+            .navbar-toggle { display: none !important; }
+        }
+        .navbar-side.in { transform: translateX(0) !important; }
+        @media (max-width: 1023px) {
+            .navbar-side { background-color: #3a6b4d !important; }
+            #page-wrapper { margin-left: 0 !important; width: 100% !important; }
+            .navbar-top-links { display: none !important; }
+            .mobile-only { display: block !important; }
+        }
+        body.mobile-shell .navbar-side { background-color: #3a6b4d !important; }
+        body.mobile-shell #page-wrapper {
+            margin-left: 0 !important;
+            width: 100% !important;
+        }
+        body.mobile-shell .navbar-top-links { display: none !important; }
+        body.mobile-shell .mobile-only { display: block !important; }
+        body.mobile-shell .profile-fields-container {
+            border-radius: 0 !important;
+        }
+        body.mobile-shell .profile-field {
+            flex-direction: row !important;
+            align-items: center !important;
+            padding: 20px 16px !important;
+        }
+        body.mobile-shell .field-icon {
+            margin-bottom: 0 !important;
+            margin-right: 18px !important;
+        }
+        body.mobile-shell .profile-photo-field {
+            padding: 20px !important;
+            margin-bottom: 0 !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            text-align: center !important;
+        }
+        body.mobile-shell .photo-upload-icon {
+            margin-bottom: 12px !important;
+            margin-right: 0 !important;
+        }
+        body.mobile-shell .field-content {
+            min-width: 0 !important;
+        }
+        body.mobile-shell .field-action {
+            margin-left: auto !important;
+            margin-top: 0 !important;
+            width: auto !important;
+        }
+        body.mobile-shell .update-btn {
+            width: auto !important;
+            display: inline-flex !important;
+        }
+        body.mobile-shell .danger-zone-card {
+            margin-top: 20px !important;
+        }
+        .sidebar-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.85) !important;
+            transition: all 0.15s ease;
+            text-decoration: none !important;
+        }
+        .sidebar-nav-link:hover {
+            color: #d3af37 !important;
+            background: rgba(255,255,255,0.08);
+            text-decoration: none !important;
+        }
+        .sidebar-nav-link.active-menu {
+            color: #d3af37 !important;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+            padding-left: 26px;
+        }
+        .sidebar-nav-link.active-menu::before {
+            content: "";
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 7px solid #d3af37;
+        }
+        .sidebar-nav-link i { width: 16px; text-align: center; }
+        #page-wrapper {
+            margin-top: 60px !important;
+            min-height: 100vh;
+            padding: 24px !important;
+            background: #f7f7f5 !important;
+        }
+        #page-inner {
+            width: 100%;
+            margin: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+            min-height: auto !important;
+        }
+        .row,
+        .col-md-12 {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        .tw-select-root {
+            position: relative !important;
+            display: inline-block !important;
+            width: 100% !important;
+            vertical-align: top !important;
+        }
+        .tw-select-root > button {
+            width: 100% !important;
+        }
+        .tw-select-menu {
+            position: absolute !important;
+            top: calc(100% + 6px) !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 1000 !important;
+            margin: 0 !important;
+            padding: 8px 0 !important;
+            list-style: none !important;
+        }
+
+        /* Final staff-style inner UI parity */
+        .profile-fields-container,
+        .danger-zone-card {
+            background: #fff !important;
+            border: 1px solid #f3f4f6 !important;
+            border-radius: 16px !important;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
+            overflow: hidden !important;
+        }
+        .profile-photo-field,
+        .profile-field {
+            padding: 24px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            background: #fff !important;
+        }
+        .profile-photo-field:hover,
+        .profile-field:hover {
+            background: #f9fafb !important;
+        }
+        .profile-field:last-child {
+            border-bottom: none !important;
+        }
+        .field-icon,
+        .photo-upload-icon,
+        .upload-icon {
+            background: #16a34a !important;
+        }
+        .field-icon {
+            width: 48px !important;
+            height: 48px !important;
+            margin-right: 20px !important;
+        }
+        .field-icon i {
+            font-size: 18px !important;
+        }
+        .field-content label {
+            margin-bottom: 2px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            color: #9ca3af !important;
+            letter-spacing: 0.08em !important;
+        }
+        .field-value {
+            font-size: 16px !important;
+            font-weight: 500 !important;
+            color: #1f2937 !important;
+        }
+        .profile-photo-field {
+            background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%) !important;
+        }
+        .profile-photo-preview,
+        .upload-preview {
+            border: 4px solid #16a34a !important;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12) !important;
+        }
+        .photo-upload-area {
+            border: 2px dashed #d1d5db !important;
+            background: #f9fafb !important;
+            border-radius: 16px !important;
+        }
+        .photo-upload-area:hover,
+        .photo-upload-area.drag-over {
+            border-color: #16a34a !important;
+            background: #ffffff !important;
+        }
+        .photo-info h4,
+        .upload-text h4 {
+            color: #111827 !important;
+            font-weight: 600 !important;
+        }
+        .photo-info p,
+        .upload-text p {
+            color: #6b7280 !important;
+        }
+        .update-btn,
+        #requestCodeBtn,
+        .btn-save {
+            background: #16a34a !important;
+            color: #fff !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            padding: 10px 16px !important;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.18) !important;
+            transition: all 0.2s ease !important;
+        }
+        .update-btn:hover,
+        #requestCodeBtn:hover,
+        .btn-save:hover {
+            background: #15803d !important;
+            color: #d3af37 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 10px 20px rgba(22, 163, 74, 0.2) !important;
+        }
+        .btn-cancel {
+            background: #fff !important;
+            color: #4b5563 !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            padding: 10px 16px !important;
+        }
+        .btn-cancel:hover {
+            background: #f3f4f6 !important;
+            color: #374151 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        .btn-danger {
+            background: #dc2626 !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            color: #fff !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            padding: 10px 18px !important;
+        }
+        .btn-danger:hover:not(:disabled):not([disabled]) {
+            background: #b91c1c !important;
+            color: #fff !important;
+        }
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.6) !important;
+            backdrop-filter: blur(4px) !important;
+        }
+        .update-modal {
+            border-radius: 20px !important;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22) !important;
+            border: 0 !important;
+        }
+        .update-modal-header {
+            padding: 22px 28px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+        }
+        .update-modal-header h3 {
+            font-size: 20px !important;
+            color: #111827 !important;
+        }
+        .close-modal {
+            top: 16px !important;
+            right: 16px !important;
+            width: 36px !important;
+            height: 36px !important;
+            border-radius: 10px !important;
+        }
+        .close-modal:hover {
+            background: #f3f4f6 !important;
+        }
+        .update-modal-body {
+            padding: 28px !important;
+        }
+        .update-form input {
+            border: 1px solid #e5e7eb !important;
+            border-radius: 12px !important;
+            height: 46px !important;
+            box-shadow: none !important;
+        }
+        .update-form input:focus {
+            border-color: #16a34a !important;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12) !important;
+        }
+        .toggle-password {
+            color: #9ca3af !important;
+        }
+        .toggle-password.is-revealing {
+            color: #6b7280 !important;
+        }
+        .toggle-password:hover {
+            color: #6b7280 !important;
+        }
+        .update-modal-footer {
+            padding: 18px 28px !important;
+            background: #f9fafb !important;
+            border-top: 1px solid #f3f4f6 !important;
+        }
+        .danger-zone-card {
+            margin-top: 32px;
+            padding: 24px;
+            border-left: 4px solid #dc2626 !important;
+            overflow: visible !important;
+        }
+        .danger-zone-card h4 {
+            margin: 0 0 10px !important;
+            color: #dc2626 !important;
+            font-weight: 600 !important;
+        }
+        .danger-zone-card p {
+            margin: 0 0 16px !important;
+            color: #6b7280 !important;
+            font-size: 14px !important;
+        }
+
+        @media (max-width: 1023px) {
+            .profile-photo-field,
+            .profile-field,
+            .danger-zone-card {
+                padding: 20px !important;
+            }
+        }
     </style>
 </head>
-<body>
-    <div id="wrapper">
-        <nav class="navbar navbar-default top-navbar" role="navigation">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".sidebar-collapse">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <a class="navbar-brand" href="dashboard.php"><img src="../images/header_logo.png" width="150"></a>
+<body class="bg-[#f7f7f5] font-sans antialiased overflow-x-hidden min-h-screen">
+    <div id="wrapper" class="min-h-screen">
+        <header class="fixed top-0 left-0 right-0 z-50 h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+            <button class="navbar-toggle lg:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none" aria-label="Toggle navigation">
+                <span class="block w-5 h-px bg-current mb-[5px]"></span>
+                <span class="block w-5 h-px bg-current mb-[5px]"></span>
+                <span class="block w-5 h-px bg-current"></span>
+            </button>
+            <a href="dashboard.php" class="flex items-center">
+                <img src="../images/header_logo.png" class="h-9 w-auto" alt="Fortiroom">
+            </a>
+            <div class="navbar-top-links hidden items-center gap-1">
+                <a href="profile.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                    <i class="fa fa-user-circle"></i> Profile
+                </a>
+                <a href="logout.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                    <i class="fa fa-sign-out"></i> Log Out
+                </a>
             </div>
-            
-            <ul class="nav navbar-top-links navbar-right">
-                <li>
-                    <a class="active-menu" href="profile.php"><i class="fa fa-user-circle"></i> Profile</a>
-                </li>
-                <li>
-                    <a href="logout.php"><i class="fa fa-sign-out"></i> Log Out</a>
-                </li>
-            </ul>
-        </nav>
-        <!--/. NAV TOP  -->
-        <nav class="navbar-default navbar-side" role="navigation">
-            <div class="sidebar-collapse">
-                <ul class="nav" id="main-menu">
+        </header>
+        <aside class="navbar-side fixed top-[60px] left-0 w-[260px] bottom-0 bg-[#1f3a26] overflow-y-auto z-40">
+            <nav class="sidebar-collapse py-5">
+                <ul class="space-y-1 px-3" id="main-menu">
                     <li>
-                        <a href="dashboard.php"><i class="fa fa-calendar fa-fw"></i> Bookings</a>
+                        <a class="sidebar-nav-link" href="dashboard.php"><i class="fa fa-calendar fa-fw"></i> Bookings</a>
                     </li>
                     <li>
-                        <a href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a>
+                        <a class="sidebar-nav-link" href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a class="active-menu" href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
+                    <li class="mobile-only" style="display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; margin-top:8px;">
+                        <a class="sidebar-nav-link active-menu" href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
+                    <li class="mobile-only" style="display:none;">
+                        <a class="sidebar-nav-link" href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
                     </li>
                 </ul>
-            </div>
-        </nav>
-        <!-- /. NAV SIDE  -->
-        <div id="page-wrapper">
+            </nav>
+        </aside>
+        <div id="page-wrapper" class="mt-[60px] min-h-screen p-6 lg:p-8">
             <div id="page-inner">
                 <div class="row">
                     <div class="col-md-12">
-                        <div style="border-bottom: 3px solid #ddd; padding-bottom: 15px; margin-bottom: 25px;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 400; color: #5a5a5a;">MY PROFILE</h1>
+                        <div class="border-b border-gray-200 pb-4 mb-6">
+                            <h1 class="m-0 text-2xl font-semibold tracking-wide text-gray-700 uppercase">My Profile</h1>
                         </div>
                     </div>
                 </div>
@@ -937,7 +1189,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                         <!--End Profile Fields Container -->
                         
                         <!-- Account Deletion Section -->
-                        <div style="margin-top: 40px; padding: 25px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #dc3545;">
+                        <div class="danger-zone-card">
                             <h4 style="margin: 0 0 10px 0; color: #dc3545; font-weight: 600;">
                                 <i class="fa fa-exclamation-triangle"></i> Danger Zone
                             </h4>
@@ -945,7 +1197,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                                 Once you delete your account, there is no going back. Please be certain.
                             </p>
                             <div class="btn-danger-wrapper" style="display: inline-block; position: relative;">
-                                <button class="btn btn-danger" onclick="openDeleteModal()" style="padding: 10px 24px; font-weight: 600; position: relative;">
+                                <button class="btn btn-danger" onclick="openDeleteModal()">
                                     <i class="fa fa-trash"></i> Request Account Deletion
                                 </button>
                             </div>
@@ -1000,7 +1252,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
                         </div>
                         <div class="form-group-update">
-                            <button type="button" id="requestCodeBtn" class="btn btn-primary" style="width: 100%; padding: 10px; margin-top: 5px;" onclick="requestEmailCode()">
+                            <button type="button" id="requestCodeBtn" class="btn btn-primary" style="width: 100%; margin-top: 5px;" onclick="requestEmailCode()">
                                 <i class="fa fa-paper-plane"></i> Request Code
                             </button>
                             <p style="margin-top: 10px; font-size: 12px; color: #6c757d; text-align: center;">
@@ -1068,13 +1320,9 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <!-- JS Scripts-->
     <!-- jQuery Js -->
     <script src="assets/js/jquery-1.10.2.js"></script>
-    <!-- Bootstrap Js -->
-    <script src="assets/js/bootstrap.min.js"></script>
-    <!-- Metis Menu Js -->
-    <script src="assets/js/jquery.metisMenu.js"></script>
+    <script src="../staff/assets/js/tailwind-selects.js"></script>
     <!-- DATA TABLE SCRIPTS -->
     <script src="assets/js/dataTables/jquery.dataTables.js"></script>
-    <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
         var currentUpdateField = null;
         var selectedPhotoFile = null;
@@ -1996,52 +2244,44 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             reader.readAsDataURL(file);
         }
         
-        // Force reset sidebar state on page load and browser back/forward
         function resetSidebar() {
             $('.navbar-side').removeClass('in');
-            $('.navbar-side').css('left', '');  // Clear inline styles
-            $('.navbar-side').attr('style', '');  // Remove all inline styles
+            $('.navbar-side').css('left', '');
+            $('.navbar-side').attr('style', '');
             $('#sidebar-overlay').remove();
-            $('body').css('overflow', '');  // Reset body overflow
+            $('body').css('overflow', '');
         }
-        
-        // Close sidebar before leaving page
-        $(window).on('beforeunload unload pagehide', function() {
-            resetSidebar();
-        });
+
+        function syncProfileShell() {
+            $('body').toggleClass('mobile-shell', $(window).width() < 1024);
+        }
+
+        $(window).on('beforeunload unload pagehide', function() { resetSidebar(); });
         
         $(document).ready(function () {
-            // Reset sidebar state on page load - with delay to ensure DOM is ready
-            setTimeout(function() {
-                resetSidebar();
-            }, 100);
+            setTimeout(function() { resetSidebar(); }, 100);
+            syncProfileShell();
             
-            // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {
                 $('.navbar-side').toggleClass('in');
-                
-                // Add/remove overlay
                 if ($('.navbar-side').hasClass('in')) {
                     if (!$('#sidebar-overlay').length) {
-                        $('body').append('<div id="sidebar-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998;"></div>');
+                        $('body').append('<div id="sidebar-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:39;"></div>');
                     }
-                } else {
-                    $('#sidebar-overlay').remove();
-                }
+                } else { $('#sidebar-overlay').remove(); }
             });
-            
-            // Close sidebar when clicking overlay
             $(document).on('click', '#sidebar-overlay', function() {
                 $('.navbar-side').removeClass('in');
                 $(this).remove();
             });
-            
-            // Close sidebar when clicking a link on mobile/tablet
             $('.navbar-side a').on('click', function() {
-                if ($(window).width() <= 991) {
+                if ($(window).width() < 1024) {
                     $('.navbar-side').removeClass('in');
                     $('#sidebar-overlay').remove();
                 }
+            });
+            $(window).on('resize', function() {
+                syncProfileShell();
             });
             
             // Photo upload area click
@@ -2061,18 +2301,29 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 this.value = this.value.replace(/[^0-9]/g, '');
             });
             
-            // Toggle password visibility
-            $(document).on('click', '.toggle-password', function() {
-                var targetId = $(this).attr('data-target');
+            function showPasswordForHold(icon) {
+                var targetId = $(icon).attr('data-target');
                 var passwordInput = $('#' + targetId);
-                
-                if (passwordInput.attr('type') === 'password') {
-                    passwordInput.attr('type', 'text');
-                    $(this).removeClass('fa-eye-slash').addClass('fa-eye');
-                } else {
-                    passwordInput.attr('type', 'password');
-                    $(this).removeClass('fa-eye').addClass('fa-eye-slash');
-                }
+                if (!passwordInput.length) return;
+                passwordInput.attr('type', 'text');
+                $(icon).removeClass('fa-eye-slash').addClass('fa-eye is-revealing');
+            }
+
+            function hidePasswordForHold(icon) {
+                var targetId = $(icon).attr('data-target');
+                var passwordInput = $('#' + targetId);
+                if (!passwordInput.length) return;
+                passwordInput.attr('type', 'password');
+                $(icon).removeClass('fa-eye is-revealing').addClass('fa-eye-slash');
+            }
+
+            $(document).on('mousedown touchstart', '.toggle-password', function(e) {
+                e.preventDefault();
+                showPasswordForHold(this);
+            });
+
+            $(document).on('mouseup mouseleave touchend touchcancel', '.toggle-password', function() {
+                hidePasswordForHold(this);
             });
             
             // Drag and drop functionality
@@ -2099,21 +2350,18 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             });
         });
         
-        // Handle browser back/forward button - reset sidebar
         window.addEventListener('pageshow', function(event) {
-            // Always reset on pageshow, whether from cache or not
             setTimeout(function() {
                 resetSidebar();
             }, 50);
         });
         
-        // Additional reset on window load
         window.addEventListener('load', function() {
             setTimeout(function() {
                 resetSidebar();
             }, 100);
         });
-        
+
         // Close modal when clicking outside of it
         $(document).on('click', '#updateModal', function(e) {
             if (e.target.id === 'updateModal') {

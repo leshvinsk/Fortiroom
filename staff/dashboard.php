@@ -222,7 +222,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 </li>
                 <li>
                     <a class="sidebar-nav-link" href="penalties.php">
-                        <i class="fa fa-exclamation-triangle fa-fw"></i> Penalties
+                        <i class="fa fa-gavel fa-fw"></i> Penalties
                     </a>
                 </li>
                 <li>
@@ -435,7 +435,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
         currentUser = sessionData.session.user;
 
-        var userRole = currentUser.user_metadata?.role || 'user';
+        var userRole = currentUser.app_metadata?.role || currentUser.user_metadata?.role || 'user';
         console.log('Current user role:', userRole);
         console.log('Current user metadata:', JSON.stringify(currentUser.user_metadata, null, 2));
 

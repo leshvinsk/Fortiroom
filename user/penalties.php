@@ -30,17 +30,10 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FORTIROOM | Intelligent Space Access Platform</title>
     <link rel="icon" href="../images/FYP_Logo_small.png" type="image/icon type">
-    <!-- Bootstrap Styles-->
-    <link href="assets/css/bootstrap.css" rel="stylesheet" />
+    <!-- Staff-side Tailwind shell -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!-- FontAwesome Styles-->
-    <link href="assets/css/font-awesome.css" rel="stylesheet" />
-    <!-- Custom Styles-->
-    <link href="assets/css/custom-styles.css" rel="stylesheet" />
-    <!-- Google Fonts-->
-    <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
-    <!-- TABLE STYLES-->
-    <link href="assets/js/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../staff/assets/css/tailwind.css">
     <!-- Supabase JS v2 -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Stripe.js -->
@@ -366,7 +359,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
         
         #page-wrapper {
-            margin-left: 260px;
+            margin-left: 0;
             margin-top: 60px; /* Height of top navbar */
             min-height: 100vh;
             position: relative;
@@ -379,14 +372,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             min-height: 100vh;
         }
         
+        html,
         body {
+            margin: 0;
             overflow-x: hidden;
             overflow-y: auto !important;
-            min-height: 100vh;
+            height: auto !important;
         }
         
-        html {
-            overflow-y: auto !important;
+        body {
+            min-height: 100vh;
         }
         
         #page-inner {
@@ -395,7 +390,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
         
         /* Mobile and Tablet Responsive */
-        @media (max-width: 768px) {
+        @media (max-width: 1023px) {
             .col-md-12 > div[style*="display: flex"] {
                 flex-direction: column !important;
                 align-items: flex-start !important;
@@ -408,7 +403,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             }
         }
         
-        @media (max-width: 991px) {
+        @media (max-width: 1023px) {
             .panel-heading h4 {
                 text-align: center;
             }
@@ -446,85 +441,6 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 border-bottom: 1px solid #ddd !important;
             }
             
-            .navbar-header {
-                background-color: #fff !important;
-                width: 100% !important;
-                position: relative !important;
-            }
-            
-            .navbar-toggle {
-                display: block !important;
-                position: absolute !important;
-                right: 15px !important;
-                top: 8px !important;
-                float: none !important;
-                margin: 0 !important;
-                background-color: #fff !important;
-                border: 1px solid #888 !important;
-                padding: 6px 10px !important;
-            }
-            
-            .navbar-toggle .icon-bar {
-                background-color: #333 !important;
-            }
-            
-            .navbar-brand {
-                float: none !important;
-                display: inline-block !important;
-                padding: 10px 15px !important;
-            }
-            
-            /* Force sidebar to start hidden - CSS takes precedence */
-            .navbar-default.navbar-side {
-                left: -260px !important;
-                transition: left 0.3s ease;
-                z-index: 999;
-                background-color: #1a2942 !important;
-                transform: translateX(0) !important;
-            }
-            
-            /* Only show when explicitly opened */
-            .navbar-default.navbar-side.in {
-                left: 0 !important;
-                transform: translateX(0) !important;
-            }
-            
-            #page-wrapper {
-                margin-left: 0 !important;
-                margin-top: 60px;
-                width: 100% !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            .navbar-top-links {
-                display: none !important;
-            }
-            
-            .sidebar-collapse {
-                padding-top: 0;
-            }
-            
-            .sidebar-collapse .nav > li > a {
-                padding: 15px 15px 15px 25px;
-            }
-            
-            .mobile-only {
-                display: block !important;
-                border-top: 1px solid #2C5F7C;
-            }
-            
-            .mobile-only:first-of-type {
-                margin-top: 10px;
-            }
-            
-            #wrapper {
-                overflow-x: hidden !important;
-                background-color: #f5f5f5 !important;
-            }
-            
-            body {
-                background-color: #f5f5f5 !important;
-            }
         }
         
         /* Global fix for all date inputs */
@@ -991,56 +907,432 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 display: none !important;
             }
         }
+        /* Staff-style Tailwind shell */
+        body {
+            font-family: 'Inter', sans-serif !important;
+            background: #f7f7f5 !important;
+        }
+        html,
+        body {
+            overflow-x: hidden;
+        }
+        #wrapper {
+            min-height: 100vh;
+            background: #f7f7f5 !important;
+        }
+        .navbar-side {
+            transform: translateX(-260px);
+            transition: transform 0.3s ease;
+        }
+        @media (min-width: 1024px) {
+            .navbar-side { transform: translateX(0) !important; }
+            #page-wrapper { margin-left: 260px !important; }
+            .navbar-top-links { display: flex !important; }
+            .mobile-only { display: none !important; }
+            .navbar-toggle { display: none !important; }
+        }
+        .navbar-side.in { transform: translateX(0) !important; }
+        @media (max-width: 1023px) {
+            .navbar-side { background-color: #3a6b4d !important; }
+            #page-wrapper { margin-left: 0 !important; width: 100% !important; }
+            .navbar-top-links { display: none !important; }
+            .mobile-only { display: block !important; }
+        }
+        body.mobile-shell {
+            overflow-x: hidden;
+            overflow-y: auto !important;
+        }
+        body.mobile-shell .navbar-side { background-color: #3a6b4d !important; }
+        body.mobile-shell #page-wrapper { margin-left: 0 !important; width: 100% !important; }
+        body.mobile-shell .navbar-top-links { display: none !important; }
+        body.mobile-shell .mobile-only { display: block !important; }
+        body.mobile-shell #page-inner > .row:first-of-type > .col-md-12 > .page-title-row {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .panel-body {
+            padding: 20px !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls > div,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .tw-select-root,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .form-control,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .manage-penalty-btn,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .btn.btn-default {
+            width: 100% !important;
+        }
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .manage-penalty-btn,
+        body.mobile-shell #page-inner > .row:nth-of-type(2) > .col-md-12 .btn.btn-default {
+            justify-content: center !important;
+        }
+        .sidebar-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.85) !important;
+            transition: all 0.15s ease;
+            text-decoration: none !important;
+        }
+        .sidebar-nav-link:hover {
+            color: #d3af37 !important;
+            background: rgba(255,255,255,0.08);
+            text-decoration: none !important;
+        }
+        .sidebar-nav-link.active-menu {
+            color: #d3af37 !important;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+            padding-left: 26px;
+        }
+        .sidebar-nav-link.active-menu::before {
+            content: "";
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 7px solid #d3af37;
+        }
+        .sidebar-nav-link i { width: 16px; text-align: center; }
+        #page-wrapper {
+            margin-top: 60px !important;
+            min-height: 100vh !important;
+            padding: 24px !important;
+            background: #f7f7f5 !important;
+        }
+        #page-inner {
+            width: 100%;
+            margin: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+            min-height: auto !important;
+        }
+        .row,
+        .col-md-12 {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        .tw-select-root {
+            position: relative !important;
+            display: inline-block !important;
+            width: 100% !important;
+            vertical-align: top !important;
+        }
+        .tw-select-root > button {
+            width: 100% !important;
+        }
+        .tw-select-menu {
+            position: absolute !important;
+            top: calc(100% + 6px) !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 1000 !important;
+            margin: 0 !important;
+            padding: 8px 0 !important;
+            list-style: none !important;
+        }
+
+        /* Final staff-style inner UI parity */
+        .panel.panel-default {
+            background: #fff !important;
+            border: 1px solid #f3f4f6 !important;
+            border-radius: 16px !important;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
+            overflow: visible !important;
+            margin-bottom: 0 !important;
+        }
+        .panel-heading {
+            background: transparent !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            padding: 16px 24px !important;
+        }
+        .panel-heading h4 {
+            margin: 0 !important;
+            font-size: 0.875rem !important;
+            font-weight: 600 !important;
+            color: #374151 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+        }
+        .panel-body {
+            padding: 24px !important;
+            overflow: visible !important;
+        }
+        .filter-controls {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 16px !important;
+            align-items: flex-end !important;
+            margin-bottom: 20px !important;
+        }
+        .filter-controls > div {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .filter-controls label {
+            margin: 0 !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            color: #6b7280 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+        }
+        .filter-controls .form-control,
+        .form-group-penalty input {
+            height: 42px !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 10px !important;
+            background: #fff !important;
+            color: #374151 !important;
+            box-shadow: none !important;
+            font-size: 14px !important;
+        }
+        .filter-controls .form-control:focus,
+        .form-group-penalty input:focus {
+            border-color: #16a34a !important;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12) !important;
+        }
+        .filter-controls .tw-select-root {
+            width: 170px !important;
+        }
+        .btn.btn-default {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            height: 42px !important;
+            padding: 0 16px !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            background: #f3f4f6 !important;
+            color: #4b5563 !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            box-shadow: none !important;
+        }
+        .btn.btn-default:hover {
+            background: #e5e7eb !important;
+            color: #374151 !important;
+        }
+        .table-responsive {
+            overflow-x: auto !important;
+            border: 0 !important;
+        }
+        table.dataTable,
+        #dataTables-example {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed;
+        }
+        #dataTables-example thead th,
+        table.dataTable thead th {
+            background: #f9fafb !important;
+            border-bottom: 2px solid #e5e7eb !important;
+            padding: 11px 16px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            color: #6b7280 !important;
+            white-space: nowrap !important;
+        }
+        #dataTables-example tbody td,
+        table.dataTable tbody td {
+            padding: 13px 16px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            font-size: 14px !important;
+            color: #374151 !important;
+            vertical-align: middle !important;
+            background: transparent !important;
+        }
+        #dataTables-example tbody tr:hover,
+        table.dataTable tbody tr:hover {
+            background: #f9fafb !important;
+        }
+        .status-badge,
+        .receipt-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            padding: 3px 10px !important;
+            border-radius: 9999px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.03em !important;
+        }
+        .btn-pay-now,
+        .manage-penalty-btn,
+        .btn-set-penalty {
+            background: #16a34a !important;
+            color: #fff !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.18) !important;
+        }
+        .btn-pay-now,
+        .btn-view-receipt {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            padding: 8px 14px !important;
+        }
+        .btn-pay-now:hover,
+        .manage-penalty-btn:hover,
+        .btn-set-penalty:hover {
+            background: #15803d !important;
+            color: #d3af37 !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 10px 20px rgba(22, 163, 74, 0.2) !important;
+        }
+        .btn-view-receipt {
+            background: #f3f4f6 !important;
+            color: #374151 !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+        }
+        .btn-view-receipt:hover {
+            background: #e5e7eb !important;
+            color: #111827 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        .modal-overlay,
+        .receipt-modal-overlay,
+        .payment-processing-overlay {
+            background: rgba(0, 0, 0, 0.6) !important;
+            backdrop-filter: blur(4px) !important;
+        }
+        .penalty-form-modal,
+        .receipt-container,
+        .payment-processing-box {
+            border-radius: 20px !important;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22) !important;
+        }
+        .penalty-form-header,
+        .receipt-header {
+            padding: 22px 28px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            background: #fff !important;
+        }
+        .penalty-form-header h3 {
+            font-size: 20px !important;
+            color: #111827 !important;
+        }
+        .penalty-form-body,
+        .receipt-body {
+            padding: 28px !important;
+        }
+        .penalty-form-footer,
+        .receipt-footer {
+            padding: 18px 28px !important;
+            background: #f9fafb !important;
+            border-top: 1px solid #f3f4f6 !important;
+        }
+        .btn-cancel {
+            background: #fff !important;
+            color: #4b5563 !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
+        .btn-cancel:hover {
+            background: #f3f4f6 !important;
+            color: #374151 !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        @media (max-width: 1023px) {
+            #page-inner > .row:first-of-type > .col-md-12 > .page-title-row {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+            }
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .panel-body {
+                padding: 20px !important;
+            }
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+            }
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls > div,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .tw-select-root,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .filter-controls .form-control,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .manage-penalty-btn,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .btn.btn-default {
+                width: 100% !important;
+            }
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .manage-penalty-btn,
+            #page-inner > .row:nth-of-type(2) > .col-md-12 .btn.btn-default {
+                justify-content: center !important;
+            }
+        }
     </style>
 </head>
-<body>
-    <div id="wrapper">
-    <nav class="navbar navbar-default top-navbar" role="navigation">
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".sidebar-collapse">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <a class="navbar-brand" href="dashboard.php"><img src="../images/header_logo.png" width="150"></a>
+<body class="bg-[#f7f7f5] font-sans antialiased overflow-x-hidden min-h-screen">
+    <div id="wrapper" class="min-h-screen">
+        <header class="fixed top-0 left-0 right-0 z-50 h-[60px] bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+            <button class="navbar-toggle lg:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none" aria-label="Toggle navigation">
+                <span class="block w-5 h-px bg-current mb-[5px]"></span>
+                <span class="block w-5 h-px bg-current mb-[5px]"></span>
+                <span class="block w-5 h-px bg-current"></span>
+            </button>
+            <a href="dashboard.php" class="flex items-center">
+                <img src="../images/header_logo.png" class="h-9 w-auto" alt="Fortiroom">
+            </a>
+            <div class="navbar-top-links hidden items-center gap-1">
+                <a href="profile.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                    <i class="fa fa-user-circle"></i> Profile
+                </a>
+                <a href="logout.php" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-green-100 rounded-lg transition-colors">
+                    <i class="fa fa-sign-out"></i> Log Out
+                </a>
             </div>
-            
-            <ul class="nav navbar-top-links navbar-right">
-                <li>
-                    <a href="profile.php"><i class="fa fa-user-circle"></i> Profile</a>
-                </li>
-                <li>
-                    <a href="logout.php"><i class="fa fa-sign-out"></i> Log Out</a>
-                </li>
-            </ul>
-        </nav>
-        <!--/. NAV TOP  -->
-        <nav class="navbar-default navbar-side" role="navigation">
-            <div class="sidebar-collapse">
-                <ul class="nav" id="main-menu">
+        </header>
+        <aside class="navbar-side fixed top-[60px] left-0 w-[260px] bottom-0 bg-[#1f3a26] overflow-y-auto z-40">
+            <nav class="sidebar-collapse py-5">
+                <ul class="space-y-1 px-3" id="main-menu">
                     <li>
-                        <a href="dashboard.php"><i class="fa fa-calendar fa-fw"></i> Bookings</a>
+                        <a class="sidebar-nav-link" href="dashboard.php"><i class="fa fa-calendar fa-fw"></i> Bookings</a>
                     </li>
                     <li>
-                        <a class="active-menu" href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a>
+                        <a class="sidebar-nav-link active-menu" href="penalties.php"><i class="fa fa-gavel fa-fw"></i> Penalties</a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
+                    <li class="mobile-only" style="display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; margin-top:8px;">
+                        <a class="sidebar-nav-link" href="profile.php"><i class="fa fa-user-circle fa-fw"></i> Profile</a>
                     </li>
-                    <li class="mobile-only" style="display: none;">
-                        <a href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
+                    <li class="mobile-only" style="display:none;">
+                        <a class="sidebar-nav-link" href="logout.php"><i class="fa fa-sign-out fa-fw"></i> Log Out</a>
                     </li>
                 </ul>
-            </div>
-        </nav>
-        <!-- /. NAV SIDE  -->
-        <div id="page-wrapper">
+            </nav>
+        </aside>
+        <div id="page-wrapper" class="mt-[60px] min-h-screen p-6 lg:p-8">
             <div id="page-inner">
                 <div class="row">
                     <div class="col-md-12">
-                        <div style="border-bottom: 3px solid #ddd; padding-bottom: 15px; margin-bottom: 25px;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 400; color: #5a5a5a;">MY PENALTIES</h1>
+                        <div class="page-title-row border-b border-gray-200 pb-4 mb-6">
+                            <h1 class="m-0 text-2xl font-semibold tracking-wide text-gray-700 uppercase">My Penalties</h1>
                         </div>
                     </div>
                 </div>
@@ -1099,9 +1391,9 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                                         </tbody>
                                         <tbody id="noResultsBody" style="display: none;">
                                             <tr>
-                                                <td colspan="6" style="text-align: center; padding: 40px; color: #999; font-size: 16px;">
-                                                    <i class="fa fa-search" style="font-size: 48px; display: block; margin-bottom: 15px; opacity: 0.3;"></i>
-                                                    No penalties found with the current filters
+                                                <td colspan="6" style="text-align: center; padding: 56px 24px; color: #6b7280; font-size: 16px;">
+                                                    <i id="penaltiesEmptyIcon" class="fa fa-gavel" style="font-size: 48px; display: block; margin-bottom: 16px; opacity: 0.28;"></i>
+                                                    <span id="penaltiesEmptyText">No Penalties Found</span>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -1214,13 +1506,9 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     <!-- JS Scripts-->
     <!-- jQuery Js -->
     <script src="assets/js/jquery-1.10.2.js"></script>
-    <!-- Bootstrap Js -->
-    <script src="assets/js/bootstrap.min.js"></script>
-    <!-- Metis Menu Js -->
-    <script src="assets/js/jquery.metisMenu.js"></script>
+    <script src="../staff/assets/js/tailwind-selects.js"></script>
     <!-- DATA TABLE SCRIPTS -->
     <script src="assets/js/dataTables/jquery.dataTables.js"></script>
-    <script src="assets/js/dataTables/dataTables.bootstrap.js"></script>
     <script>
         var dataTable;
         var supabase = null;
@@ -1263,7 +1551,11 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 "order": [],  // No default sorting - maintain manual order (pending first, then by date)
                 "paging": false,  // Disable pagination - show all records
                 "searching": false,  // Disable search box
-                "info": false  // Hide "Showing X to Y of Z entries" text
+                "info": false,  // Hide "Showing X to Y of Z entries" text
+                "language": {
+                    "emptyTable": "",
+                    "zeroRecords": ""
+                }
             });
             
             // Check for payment success/error messages from URL (after data is loaded)
@@ -1289,7 +1581,11 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     "order": [],
                     "paging": false,
                     "searching": false,
-                    "info": false
+                    "info": false,
+                    "language": {
+                        "emptyTable": "",
+                        "zeroRecords": ""
+                    }
                 });
                 
                 alert('Payment successful! Your penalty has been paid.');
@@ -1472,8 +1768,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             tbody.empty();
             
             if (penaltiesData.length === 0) {
-                // Show "no results" message if no penalties
-                $('#noResultsBody').show();
+                updatePenaltiesEmptyState(false);
                 return;
             }
             
@@ -1503,6 +1798,16 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 
                 tbody.append(row);
             });
+        }
+
+        function updatePenaltiesEmptyState(usingFilters) {
+            $('#penaltiesEmptyText').text(usingFilters ? 'No Penalties Found with Current Filter' : 'No Penalties Found');
+            $('#penaltiesEmptyIcon').attr('class', 'fa fa-gavel');
+            $('#noResultsBody').show();
+        }
+
+        function hasActivePenaltyFilters() {
+            return $('#filterStatus').val() !== 'all' || $('#filterDate').val() !== '' || $('#filterViolation').val() !== 'all';
         }
         
         function applyFilters() {
@@ -1556,7 +1861,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             
             // Show/hide "no results" message
             if (visibleCount === 0) {
-                $('#noResultsBody').show();
+                updatePenaltiesEmptyState(hasActivePenaltyFilters());
             } else {
                 $('#noResultsBody').hide();
             }
@@ -1568,81 +1873,65 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             $('#filterDate').val('');
             $('#filterViolation').val('all');
             
-            // Show all rows and hide no results message
+            // Show all rows and restore the correct base empty state
             $('#penaltiesTableBody tr').show();
-            $('#noResultsBody').hide();
+            if (penaltiesData.length === 0) {
+                updatePenaltiesEmptyState(false);
+            } else {
+                $('#noResultsBody').hide();
+            }
             
             console.log('Filters reset - showing all rows');
         }
         
-        // Force reset sidebar state on page load and browser back/forward
         function resetSidebar() {
             $('.navbar-side').removeClass('in');
-            $('.navbar-side').css('left', '');  // Clear inline styles
-            $('.navbar-side').attr('style', '');  // Remove all inline styles
+            $('.navbar-side').css('left', '');
+            $('.navbar-side').attr('style', '');
             $('#sidebar-overlay').remove();
-            $('body').css('overflow', '');  // Reset body overflow
+            $('body').css('overflow', '');
         }
-        
-        // Close sidebar before leaving page
-        $(window).on('beforeunload unload pagehide', function() {
-            resetSidebar();
-        });
+
+        function syncPenaltiesShell() {
+            $('body').toggleClass('mobile-shell', $(window).width() < 1024);
+        }
+
+        $(window).on('beforeunload unload pagehide', function() { resetSidebar(); });
         
         $(document).ready(function () {
-            // Reset sidebar state on page load - with delay to ensure DOM is ready
-            setTimeout(function() {
-                resetSidebar();
-            }, 100);
+            setTimeout(function() { resetSidebar(); }, 100);
+            syncPenaltiesShell();
             
-            // Request notification permission on page load
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission();
             }
             
-            // Mobile menu toggle
             $('.navbar-toggle').on('click', function() {
                 $('.navbar-side').toggleClass('in');
-                
-                // Add/remove overlay
                 if ($('.navbar-side').hasClass('in')) {
                     if (!$('#sidebar-overlay').length) {
-                        $('body').append('<div id="sidebar-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998;"></div>');
+                        $('body').append('<div id="sidebar-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:39;"></div>');
                     }
-                } else {
-                    $('#sidebar-overlay').remove();
-                }
+                } else { $('#sidebar-overlay').remove(); }
             });
-            
-            // Close sidebar when clicking overlay
             $(document).on('click', '#sidebar-overlay', function() {
                 $('.navbar-side').removeClass('in');
                 $(this).remove();
             });
-            
-            // Close sidebar when clicking a link on mobile/tablet
             $('.navbar-side a').on('click', function() {
-                if ($(window).width() <= 991) {
+                if ($(window).width() < 1024) {
                     $('.navbar-side').removeClass('in');
                     $('#sidebar-overlay').remove();
                 }
             });
+            $(window).on('resize', function() {
+                syncPenaltiesShell();
+            });
         });
         
-        // Handle browser back/forward button - reset sidebar
-        window.addEventListener('pageshow', function(event) {
-            // Always reset on pageshow, whether from cache or not
-            setTimeout(function() {
-                resetSidebar();
-            }, 50);
-        });
+        window.addEventListener('pageshow', function(event) { setTimeout(function() { resetSidebar(); }, 50); });
         
-        // Additional reset on window load
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                resetSidebar();
-            }, 100);
-        });
+        window.addEventListener('load', function() { setTimeout(function() { resetSidebar(); }, 100); });
         
         // Penalty Rate Management Functions
         function openPenaltyModal() {
