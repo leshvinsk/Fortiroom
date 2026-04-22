@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'esp32_env_registry.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
@@ -81,6 +83,17 @@ function numericOrNull($value): ?float
 loadEnv(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '.env');
 
 $sensorsUrl = trim($_ENV['ESP_SENSORS_URL'] ?? '');
+if ($sensorsUrl === '') {
+    $envDeviceId = trim((string) ($_ENV['ESP_ENV_DEVICE_ID'] ?? 'fortiroom-main'));
+    $registryResult = envRegistryLoadSelectedEntry($envDeviceId);
+    $registryEntry = $registryResult['entry'];
+    if (envRegistryIsFresh($registryEntry)) {
+        $registrySensorsUrl = trim((string) ($registryEntry['sensors_url'] ?? ''));
+        if ($registrySensorsUrl !== '') {
+            $sensorsUrl = $registrySensorsUrl;
+        }
+    }
+}
 if ($sensorsUrl === '') {
     $espBaseUrl = rtrim(trim($_ENV['ESP_BASE_URL'] ?? 'http://esp32.local'), '/');
     $sensorsPath = '/' . ltrim(trim($_ENV['ESP_SENSORS_PATH'] ?? '/api/sensors'), '/');

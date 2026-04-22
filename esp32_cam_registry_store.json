@@ -1,0 +1,24 @@
+{
+    "devices": {
+        "fortiroom-cam": {
+            "device_id": "fortiroom-cam",
+            "device": "fortiroom-cam",
+            "hostname": "fortiroom-cam",
+            "ssid": "Guest@HELP",
+            "ip": "10.150.213.31",
+            "base_url": "http://10.150.213.31",
+            "capture_url": "http://10.150.213.31/capture",
+            "health_url": "http://10.150.213.31/health",
+            "button_url": "http://10.150.213.31/button",
+            "trigger_capture_url": "http://10.150.213.31/trigger-capture",
+            "mac": "B0:CB:D8:C0:EA:4C",
+            "rssi": -65,
+            "last_seen_unix": 1776738955,
+            "last_seen_iso": "2026-04-21T02:35:55+00:00",
+            "reported_by": "esp32"
+        }
+    },
+    "latest_device_id": "fortiroom-cam",
+    "updated_at_unix": 1776738955,
+    "updated_at_iso": "2026-04-21T02:35:55+00:00"
+}

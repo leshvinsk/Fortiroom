@@ -254,9 +254,14 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             <!-- Page Heading -->
             <div class="border-b border-gray-200 pb-4 mb-8 flex items-center justify-between flex-wrap gap-4">
                 <h1 class="text-2xl font-light tracking-wide font-semibold text-gray-700 uppercase">Penalties Management</h1>
-                <button onclick="openPenaltyModal()" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
-                    <i class="fa fa-plus-circle"></i> Manage Penalty Rates
-                </button>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button onclick="openAccessRulesModal()" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
+                        <i class="fa fa-sliders"></i> Manage Access Rules
+                    </button>
+                    <button onclick="openPenaltyModal()" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
+                        <i class="fa fa-plus-circle"></i> Manage Penalty Rates
+                    </button>
+                </div>
             </div>
 
             <!-- Penalties Table Card -->
@@ -384,6 +389,112 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     </div>
 </div>
 
+<!-- Access Rules Management Modal -->
+<div id="accessRulesModal" class="fixed inset-0 z-[9999] hidden items-center justify-content-center" style="display:none; align-items:center; justify-content:center;">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeAccessRulesModal()"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl modal-animate mx-auto my-auto overflow-hidden flex flex-col" style="position:relative; z-index:1; width:min(92vw, 980px); height:min(84vh, 760px);">
+        <div class="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-white shrink-0">
+            <h3 class="text-xl font-semibold text-gray-900">Manage Access Rules</h3>
+            <button onclick="closeAccessRulesModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none font-light transition-colors">&times;</button>
+        </div>
+        <div class="px-8 py-6 space-y-5 overflow-y-auto flex-1" style="min-height:0; max-height:100%;">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                    <label for="lateCancellationThresholdHours" class="block text-sm font-medium text-gray-700 mb-2">
+                        Late Cancellation Threshold (Hours) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" id="lateCancellationThresholdHours" placeholder="3" step="1" min="0"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                    <p class="mt-1 text-xs text-gray-500">Minimum hours before cancellation to avoid penalty.</p>
+                </div>
+                <div>
+                    <label for="checkInGracePeriodMins" class="block text-sm font-medium text-gray-700 mb-2">
+                        Check-in Grace Period (Minutes) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" id="checkInGracePeriodMins" placeholder="15" step="1" min="0"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                    <p class="mt-1 text-xs text-gray-500">If not checked in within this time, mark as no-show automatically.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                    <label for="faceVerificationMode" class="block text-sm font-medium text-gray-700 mb-2">
+                        AI Face Verification Mode <span class="text-red-500">*</span>
+                    </label>
+                    <select id="faceVerificationMode"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                        <option value="single">Single Person</option>
+                        <option value="dual">Dual Person</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-4">
+                <div class="flex items-center gap-2 mb-4">
+                    <i class="fa fa-clock-o text-green-600"></i>
+                    <h4 class="text-sm font-semibold text-gray-800 uppercase tracking-wide">Operating Hours Configuration</h4>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="operationTime" class="block text-sm font-medium text-gray-700 mb-2">Operation Time Window (24-Hour Format)</label>
+                        <input type="text" id="operationTime" placeholder="08:00-20:00"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                        <p class="mt-1 text-xs text-gray-500">Users can only book spaces within this operating time window. Use 24-hour format, for example <span class="font-mono">08:00-20:00</span>.</p>
+                    </div>
+                    <div>
+                        <label for="peakHours" class="block text-sm font-medium text-gray-700 mb-2">Peak Hours Window (24-Hour Format)</label>
+                        <input type="text" id="peakHours" placeholder="08:00-17:00"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 md:col-span-2">
+                        <div>
+                            <label for="peakMinDurationMins" class="block text-sm font-medium text-gray-700 mb-2">Peak Min Duration (Mins)</label>
+                            <input type="number" id="peakMinDurationMins" placeholder="30" step="1" min="0"
+                                class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                        </div>
+                        <div>
+                            <label for="peakMaxDurationMins" class="block text-sm font-medium text-gray-700 mb-2">Peak Max Duration (Mins)</label>
+                            <input type="number" id="peakMaxDurationMins" placeholder="180" step="1" min="0"
+                                class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label for="blackoutDates" class="block text-sm font-medium text-gray-700 mb-2">
+                    Blackout Dates / Ranges
+                </label>
+                <textarea id="blackoutDates" rows="4" placeholder="25/04/2026&#10;01/05/2026 to 03/05/2026"
+                    class="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors"></textarea>
+                <p class="mt-1 text-xs text-gray-500">Enter one date or date range per line in <span class="font-mono">DD/MM/YYYY</span> format. Example: <span class="font-mono">01/05/2026 to 03/05/2026</span></p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label class="flex items-start gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                    <input type="checkbox" id="blockEntryIfOutstandingPenalties" class="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                    <div>
+                        <div class="text-sm font-medium text-gray-800">Block entry if user has outstanding penalties</div>
+                        <div class="text-xs text-gray-500 mt-1">Prevents access until pending penalties are cleared.</div>
+                    </div>
+                </label>
+                <label id="secondaryUserPenaltyRule" class="flex items-start gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                    <input type="checkbox" id="blockSecondaryUserIfHasPenalty" class="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                    <div>
+                        <div class="text-sm font-medium text-gray-800">Block secondary user if they have penalties</div>
+                        <div class="text-xs text-gray-500 mt-1">Prevents adding a secondary user with unpaid penalties.</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+        <div class="flex items-center justify-end gap-3 px-8 py-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl shrink-0">
+            <button class="btn-cancel px-6 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg transition-colors" onclick="closeAccessRulesModal()">Cancel</button>
+            <button class="btn-set-access-rules px-6 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm" onclick="saveAccessRules()">Save Rules</button>
+        </div>
+    </div>
+</div>
+
 <!-- JS Scripts -->
 <script src="assets/js/jquery-1.10.2.js"></script>
 <script src="assets/js/tailwind-selects.js"></script>
@@ -397,7 +508,23 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     var penaltiesData = [];
     var podsData = [];
     var penaltyRates = {};
+    var accessRules = {};
     var filterDatePicker = null;
+
+    function getDefaultAccessRules() {
+        return {
+            late_cancellation_threshold_hours: 3,
+            face_verification_mode: 'single',
+            operation_time: '08:00-20:00',
+            peak_hours: '08:00-17:00',
+            peak_min_duration_mins: 30,
+            peak_max_duration_mins: 180,
+            blackout_dates: [],
+            check_in_grace_period_mins: 15,
+            block_entry_if_outstanding_penalties: false,
+            block_secondary_user_if_has_penalty: false
+        };
+    }
 
     function formatFlatpickrHeader(instance) {
         if (!instance || !instance.calendarContainer) return;
@@ -440,6 +567,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
         await loadPods();
         await loadPenaltyRates();
+        await loadAccessRules();
         await loadPenalties();
         initDateFilterPicker();
 
@@ -468,6 +596,28 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 penaltyRates = { 'Late Cancellation': 10.00, 'No Show': 25.00, 'Late Checkout': 15.00 };
             }
         } catch (error) { console.error('Error in loadPenaltyRates:', error); penaltyRates = { 'Late Cancellation': 10.00, 'No Show': 25.00, 'Late Checkout': 15.00 }; }
+    }
+
+    async function loadAccessRules() {
+        var defaults = getDefaultAccessRules();
+        try {
+            const response = await fetch('get_access_rules.php', {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                console.error('Error loading access rules:', result);
+                accessRules = defaults;
+                return;
+            }
+
+            accessRules = Object.assign({}, defaults, result.data || {});
+            if (!Array.isArray(accessRules.blackout_dates)) accessRules.blackout_dates = [];
+        } catch (error) {
+            console.error('Error in loadAccessRules:', error);
+            accessRules = defaults;
+        }
     }
 
     async function loadPenalties() {
@@ -728,9 +878,131 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         $('body').css('overflow', 'hidden');
     }
 
+    async function openAccessRulesModal() {
+        await loadAccessRules();
+        $('#lateCancellationThresholdHours').val(accessRules.late_cancellation_threshold_hours);
+        $('#faceVerificationMode').val(accessRules.face_verification_mode || 'single');
+        $('#operationTime').val(accessRules.operation_time || '08:00-20:00');
+        $('#peakHours').val(accessRules.peak_hours || '08:00-17:00');
+        $('#peakMinDurationMins').val(accessRules.peak_min_duration_mins);
+        $('#peakMaxDurationMins').val(accessRules.peak_max_duration_mins);
+        $('#blackoutDates').val((accessRules.blackout_dates || []).join('\n'));
+        $('#checkInGracePeriodMins').val(accessRules.check_in_grace_period_mins);
+        $('#blockEntryIfOutstandingPenalties').prop('checked', !!accessRules.block_entry_if_outstanding_penalties);
+        $('#blockSecondaryUserIfHasPenalty').prop('checked', !!accessRules.block_secondary_user_if_has_penalty);
+        syncSecondaryUserPenaltyVisibility();
+        $('#accessRulesModal').css('display', 'flex');
+        $('body').css('overflow', 'hidden');
+    }
+
     function closePenaltyModal() {
         $('#penaltyModal').css('display', 'none');
         $('body').css('overflow', '');
+    }
+
+    function closeAccessRulesModal() {
+        $('#accessRulesModal').css('display', 'none');
+        $('body').css('overflow', '');
+    }
+
+    function parseBlackoutDatesInput(value) {
+        return (value || '')
+            .split(/\r?\n/)
+            .map(function(line) { return line.trim(); })
+            .filter(function(line) { return line.length > 0; });
+    }
+
+    function isValidBlackoutDateEntry(value) {
+        var pattern = /^(\d{2}\/\d{2}\/\d{4})(\s+to\s+\d{2}\/\d{2}\/\d{4})?$/i;
+        return pattern.test((value || '').trim());
+    }
+
+    function isValidTimeRange(value) {
+        return /^\d{2}:\d{2}\s*-\s*\d{2}:\d{2}$/.test((value || '').trim());
+    }
+
+    function syncSecondaryUserPenaltyVisibility() {
+        var isDualMode = ($('#faceVerificationMode').val() || 'single') === 'dual';
+        $('#secondaryUserPenaltyRule').toggle(isDualMode);
+        if (!isDualMode) {
+            $('#blockSecondaryUserIfHasPenalty').prop('checked', false);
+        }
+    }
+
+    async function saveAccessRules() {
+        var payload = {
+            late_cancellation_threshold_hours: parseInt($('#lateCancellationThresholdHours').val(), 10),
+            face_verification_mode: ($('#faceVerificationMode').val() || 'single').trim(),
+            operation_time: $('#operationTime').val().trim(),
+            peak_hours: $('#peakHours').val().trim(),
+            peak_min_duration_mins: parseInt($('#peakMinDurationMins').val(), 10),
+            peak_max_duration_mins: parseInt($('#peakMaxDurationMins').val(), 10),
+            blackout_dates: parseBlackoutDatesInput($('#blackoutDates').val()),
+            check_in_grace_period_mins: parseInt($('#checkInGracePeriodMins').val(), 10),
+            block_entry_if_outstanding_penalties: $('#blockEntryIfOutstandingPenalties').is(':checked'),
+            block_secondary_user_if_has_penalty: $('#blockSecondaryUserIfHasPenalty').is(':checked'),
+            user_id: currentUser ? currentUser.id : null
+        };
+
+        if (isNaN(payload.late_cancellation_threshold_hours) || payload.late_cancellation_threshold_hours < 0) {
+            alert('Please enter a valid late cancellation threshold in hours.');
+            return;
+        }
+        if (payload.face_verification_mode !== 'single' && payload.face_verification_mode !== 'dual') {
+            alert('Please select a valid face verification mode.');
+            return;
+        }
+        if (!isValidTimeRange(payload.operation_time)) {
+            alert('Please enter a valid operation time range in the format HH:MM-HH:MM.');
+            return;
+        }
+        if (!isValidTimeRange(payload.peak_hours)) {
+            alert('Please enter a valid peak hours range in the format HH:MM-HH:MM.');
+            return;
+        }
+        for (var j = 0; j < payload.blackout_dates.length; j++) {
+            if (!isValidBlackoutDateEntry(payload.blackout_dates[j])) {
+                alert('Blackout dates must use DD/MM/YYYY format. Example: 01/05/2026 or 01/05/2026 to 03/05/2026.');
+                return;
+            }
+        }
+
+        var durationFields = [
+            ['Peak minimum duration', payload.peak_min_duration_mins],
+            ['Peak maximum duration', payload.peak_max_duration_mins],
+            ['Check-in grace period', payload.check_in_grace_period_mins]
+        ];
+        for (var i = 0; i < durationFields.length; i++) {
+            if (isNaN(durationFields[i][1]) || durationFields[i][1] < 0) {
+                alert(durationFields[i][0] + ' must be a valid non-negative number.');
+                return;
+            }
+        }
+        if (payload.peak_min_duration_mins > payload.peak_max_duration_mins) {
+            alert('Peak minimum duration cannot be greater than peak maximum duration.');
+            return;
+        }
+        var saveButton = $('.btn-set-access-rules');
+        var originalText = saveButton.text();
+        saveButton.prop('disabled', true).text('Saving…');
+
+        try {
+            const response = await fetch('update_access_rules.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || 'Failed to update access rules');
+            await loadAccessRules();
+            closeAccessRulesModal();
+            alert('Access rules updated successfully.');
+        } catch (error) {
+            console.error('Error updating access rules:', error);
+            alert('Error updating access rules: ' + (error.message || 'Unknown error') + '\n\nPlease try again.');
+        } finally {
+            saveButton.prop('disabled', false).text(originalText);
+        }
     }
 
     async function setPenaltyRates() {
@@ -805,6 +1077,11 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
     $(document).on('keydown', function(e) {
         if (e.key === 'Escape' && $('#penaltyModal').css('display') !== 'none') closePenaltyModal();
+        if (e.key === 'Escape' && $('#accessRulesModal').css('display') !== 'none') closeAccessRulesModal();
+    });
+
+    $(document).on('change', '#faceVerificationMode', function() {
+        syncSecondaryUserPenaltyVisibility();
     });
 </script>
 <script src="assets/js/custom-scripts.js"></script>

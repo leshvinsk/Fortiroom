@@ -146,6 +146,18 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             border-radius: 5px;
             transition: all 0.2s;
         }
+        .btn-view,
+        .btn-delete,
+        .btn-pods {
+            width: 114px;
+            min-width: 114px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-radius: 14px !important;
+        }
         .btn-view:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
@@ -161,6 +173,36 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         .btn-delete:hover:not(.disabled):not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+        }
+        .btn-pods {
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            background: #f3f4f6;
+            border: 1px solid #f3f4f6;
+            color: #1f3b63;
+        }
+        .btn-pods:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+            background: #e5e7eb;
+            border-color: #e5e7eb;
+            color: #1f3b63;
+        }
+        .btn-pods.disabled,
+        .btn-pods:disabled {
+            opacity: 0.5;
+            cursor: not-allowed !important;
+            pointer-events: none;
+            background-color: #6c757d !important;
+            border-color: #6c757d !important;
+            color: #fff !important;
+        }
+        .btn-pods.disabled:hover,
+        .btn-pods:disabled:hover {
+            transform: none;
+            box-shadow: none;
         }
         .btn-delete.disabled,
         .btn-delete:disabled {
@@ -305,6 +347,114 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         .capacity-info i {
             margin-right: 8px;
             font-size: 16px;
+        }
+
+        .pods-modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .pods-metric-card,
+        .pods-control-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 16px 18px;
+        }
+        .pods-card-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+        .pods-card-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+        .pods-card-subtext {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #64748b;
+        }
+        .pods-control-card.full-width {
+            grid-column: 1 / -1;
+        }
+        .pods-light-toggle {
+            width: 100%;
+            min-height: 52px;
+            border-radius: 12px;
+            border: 1px solid #dbe4ee;
+            font-size: 15px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+            background: #ffffff;
+            color: #475569;
+        }
+        .pods-light-toggle.is-on {
+            background: #fef3c7;
+            border-color: #fcd34d;
+            color: #92400e;
+        }
+        .pods-light-toggle:disabled {
+            opacity: 0.65;
+            cursor: wait;
+        }
+        .pods-fan-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .pods-fan-mode {
+            min-width: 44px;
+            height: 36px;
+            border-radius: 999px;
+            border: 1px solid #f59e0b;
+            background: #fbbf24;
+            color: #1f2937;
+            font-weight: 800;
+        }
+        .pods-fan-speed {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .pods-fan-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #94a3b8;
+            font-size: 20px;
+            line-height: 1;
+        }
+        .pods-fan-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .pods-fan-value {
+            min-width: 20px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            color: #475569;
+        }
+        .pods-live-note {
+            margin-top: 14px;
+            font-size: 13px;
+            color: #64748b;
+        }
+        .pods-loading-row {
+            margin-bottom: 18px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 14px;
         }
         
         .booking-modal-footer {
@@ -651,10 +801,13 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 gap: 5px;
             }
             
-            .btn-view, .btn-delete {
+            .btn-view, .btn-delete, .btn-pods {
                 width: 100%;
                 font-size: 11px;
                 padding: 5px 10px;
+            }
+            .pods-modal-grid {
+                grid-template-columns: 1fr;
             }
             
             .create-booking-btn {
@@ -1239,6 +1392,21 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             </div>
         </div>
     </div>
+
+    <div class="booking-modal-overlay" id="podControlsModal">
+        <div class="booking-modal">
+            <div class="booking-modal-header">
+                <h3>Pod Controls</h3>
+                <button class="close-booking-modal" onclick="closePodControlsModal()">&times;</button>
+            </div>
+            <div class="booking-modal-body" id="podControlsContent">
+                <!-- Pod controls will be populated here -->
+            </div>
+            <div class="booking-modal-footer">
+                <button class="btn-modal-close" onclick="closePodControlsModal()">Close</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Create Booking Modal -->
     <div class="create-booking-modal-overlay" id="createBookingModal">
@@ -1249,6 +1417,11 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             </div>
             <div class="booking-modal-body">
                 <form id="createBookingForm" onsubmit="return false;">
+                    <div class="create-booking-form-group" id="accessRulesSummaryBox" style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px; padding:14px 16px;">
+                        <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">Active Access Rules</div>
+                        <div id="accessRulesSummaryText" style="font-size:13px; color:#475569; line-height:1.7;"></div>
+                    </div>
+
                     <div class="create-booking-form-group">
                         <label for="bookingDate">Booking Date <span class="required">*</span></label>
                         <input type="date" id="bookingDate" name="bookingDate" required min="" placeholder="Select date" style="color-scheme: light;" onchange="updateCheckInTimeOptions(); updateCheckOutOptions(); validateBookingTimes();">
@@ -1328,6 +1501,22 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                         <label for="numberOfPeople">Number of People <span class="required">*</span></label>
                         <input type="number" id="numberOfPeople" min="1" max="8" placeholder="Enter number of people (1-8)" required>
                     </div>
+
+                    <div class="create-booking-form-group" id="allowSecondaryAccessGroup" style="display:none;">
+                        <label for="allowSecondaryAccess" style="display:flex; align-items:flex-start; gap:12px; cursor:pointer; border:1px solid #e5e7eb; border-radius:12px; padding:14px 16px; background:#f8fafc; margin-bottom:0;">
+                            <input type="checkbox" id="allowSecondaryAccess" onchange="toggleSecondaryAccessFields()" style="width:18px; height:18px; min-width:18px; margin-top:2px;">
+                            <span style="display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:15px; font-weight:600; color:#334155; line-height:1.4;">Allow Access For Second User</span>
+                                <span style="font-size:13px; color:#64748b; line-height:1.5;">Only available when Access Rules are set to Dual Person.</span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="create-booking-form-group" id="secondaryUsernameGroup" style="display:none;">
+                        <label for="secondaryUsername">Second User Username</label>
+                        <input type="text" id="secondaryUsername" placeholder="Enter registered username" autocomplete="off">
+                        <small id="secondaryUsernameStatus" style="display:block; margin-top:5px; font-size:13px; color:#666;">Enter the second user's username to validate access.</small>
+                    </div>
                     
                 </form>
             </div>
@@ -1350,9 +1539,232 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         var currentUser = null;
         var bookingsData = [];
         var podsData = [];
+        var accessRules = null;
+        var secondaryUserValidation = {
+            valid: false,
+            checkedUsername: '',
+            userId: null
+        };
+
+        function getFallbackPodName(podId) {
+            if (podsData.length === 1 && String((podsData[0] || {}).name || '').trim() !== '') {
+                return podsData[0].name;
+            }
+            return 'Pod 1';
+        }
         var penaltyRates = {}; // Store penalty rates from database
         var refreshInterval = null;
         var hasPendingPenalties = true; // Default to true (disabled) until we check - prevents accidental clicks
+        var LIVE_METRICS_API = '../staff/api/pod_metrics.php';
+        var LIGHT_API = '../staff/api/pod_light.php';
+        var FAN_API = '../staff/api/pod_fan.php';
+        var CHECKOUT_API = '../staff/api/pod_checkout.php';
+        var podModalRefreshTimer = null;
+        var currentPodModalBookingId = null;
+        var podModalStateCache = {};
+        var podLiveStateRefreshTimer = null;
+
+        function getDefaultAccessRules() {
+            return {
+                late_cancellation_threshold_hours: 3,
+                face_verification_mode: 'single',
+                operation_time: '08:00-20:00',
+                peak_hours: '08:00-17:00',
+                peak_min_duration_mins: 30,
+                peak_max_duration_mins: 180,
+                blackout_dates: [],
+                check_in_grace_period_mins: 15,
+                block_entry_if_outstanding_penalties: false,
+                block_secondary_user_if_has_penalty: false
+            };
+        }
+
+        async function loadAccessRules() {
+            var defaults = getDefaultAccessRules();
+            try {
+                const response = await fetch('get_access_rules.php', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    console.error('Error loading access rules:', result);
+                    accessRules = defaults;
+                    return;
+                }
+                accessRules = Object.assign({}, defaults, result.data || {});
+                if (!Array.isArray(accessRules.blackout_dates)) accessRules.blackout_dates = [];
+            } catch (error) {
+                console.error('Error in loadAccessRules:', error);
+                accessRules = defaults;
+            }
+        }
+
+        function parseTimeRange(rangeText) {
+            var value = (rangeText || '').trim();
+            var match = value.match(/^(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})$/);
+            if (!match) return null;
+            return {
+                start: parseInt(match[1], 10) * 60 + parseInt(match[2], 10),
+                end: parseInt(match[3], 10) * 60 + parseInt(match[4], 10)
+            };
+        }
+
+        function minutesToTimeString(totalMinutes) {
+            var hours = Math.floor(totalMinutes / 60);
+            var minutes = totalMinutes % 60;
+            return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+        }
+
+        function generateTimeSlots(startMinutes, endMinutes) {
+            var slots = [];
+            for (var m = startMinutes; m <= endMinutes; m += 15) {
+                slots.push(minutesToTimeString(m));
+            }
+            return slots;
+        }
+
+        function normalizeBlackoutDateText(value) {
+            return (value || '').trim().replace(/\s+/g, ' ');
+        }
+
+        function isDateWithinBlackout(dateValue) {
+            if (!dateValue || !accessRules || !Array.isArray(accessRules.blackout_dates)) return false;
+            var parts = dateValue.split('-');
+            if (parts.length !== 3) return false;
+            var normalized = parts[2] + '/' + parts[1] + '/' + parts[0];
+            var selectedDate = new Date(dateValue + 'T00:00:00');
+            if (isNaN(selectedDate.getTime())) return false;
+
+            return accessRules.blackout_dates.some(function(entry) {
+                var text = normalizeBlackoutDateText(entry);
+                if (!text) return false;
+                if (text.toLowerCase().indexOf(' to ') !== -1) {
+                    var rangeParts = text.split(/\s+to\s+/i);
+                    if (rangeParts.length !== 2) return false;
+                    var start = parseDdMmYyyyDate(rangeParts[0]);
+                    var end = parseDdMmYyyyDate(rangeParts[1]);
+                    if (!start || !end) return false;
+                    return selectedDate >= start && selectedDate <= end;
+                }
+                return text === normalized;
+            });
+        }
+
+        function parseDdMmYyyyDate(value) {
+            var match = (value || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (!match) return null;
+            var parsed = new Date(match[3] + '-' + match[2] + '-' + match[1] + 'T00:00:00');
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        function isTimeWithinRange(timeText, rangeObj) {
+            if (!rangeObj || !timeText) return false;
+            var timeParts = timeText.split(':');
+            if (timeParts.length !== 2) return false;
+            var total = parseInt(timeParts[0], 10) * 60 + parseInt(timeParts[1], 10);
+            return total >= rangeObj.start && total < rangeObj.end;
+        }
+
+        function getOperationRange() {
+            return parseTimeRange((accessRules || {}).operation_time || '08:00-20:00');
+        }
+
+        function getPeakRange() {
+            return parseTimeRange((accessRules || {}).peak_hours || '08:00-17:00');
+        }
+
+        function shouldBlockBookingForPendingPenalties() {
+            return !!((accessRules || {}).block_entry_if_outstanding_penalties);
+        }
+
+        function resetSecondaryUserValidation() {
+            secondaryUserValidation = {
+                valid: false,
+                checkedUsername: '',
+                userId: null
+            };
+            $('#secondaryUsernameStatus').text('Enter the second user\'s username to validate access.').css('color', '#666');
+        }
+
+        function syncSecondaryAccessRuleUi() {
+            var dualMode = ((accessRules || {}).face_verification_mode || 'single') === 'dual';
+            $('#allowSecondaryAccessGroup').toggle(dualMode);
+            if (!dualMode) {
+                $('#allowSecondaryAccess').prop('checked', false);
+                $('#secondaryUsernameGroup').hide();
+                $('#secondaryUsername').val('');
+                resetSecondaryUserValidation();
+            } else {
+                toggleSecondaryAccessFields();
+            }
+        }
+
+        function renderAccessRulesSummary() {
+            var rules = accessRules || getDefaultAccessRules();
+            var lines = [];
+            lines.push('<strong>Operation Time:</strong> ' + (rules.operation_time || '08:00-20:00'));
+            lines.push('<strong>Peak Hours:</strong> ' + (rules.peak_hours || '08:00-17:00'));
+            lines.push('<strong>Peak Duration:</strong> ' + (rules.peak_min_duration_mins || 30) + ' to ' + (rules.peak_max_duration_mins || 180) + ' minutes');
+            lines.push('<strong>Face Verification:</strong> ' + (((rules.face_verification_mode || 'single') === 'dual') ? 'Dual Person' : 'Single Person'));
+            lines.push('<strong>Check-in Grace:</strong> ' + (rules.check_in_grace_period_mins || 15) + ' minutes');
+            if (Array.isArray(rules.blackout_dates) && rules.blackout_dates.length > 0) {
+                lines.push('<strong>Blackout Dates:</strong> ' + rules.blackout_dates.join(', '));
+            }
+            if (rules.block_entry_if_outstanding_penalties) {
+                lines.push('<strong>Outstanding Penalties:</strong> Booking is blocked');
+            }
+            if (rules.block_secondary_user_if_has_penalty && (rules.face_verification_mode || 'single') === 'dual') {
+                lines.push('<strong>Secondary User Rule:</strong> Pending penalties are not allowed');
+            }
+            $('#accessRulesSummaryText').html(lines.join('<br>'));
+        }
+
+        function toggleSecondaryAccessFields() {
+            var enabled = $('#allowSecondaryAccess').is(':checked');
+            $('#secondaryUsernameGroup').toggle(enabled);
+            if (!enabled) {
+                $('#secondaryUsername').val('');
+                resetSecondaryUserValidation();
+            }
+        }
+
+        async function validateSecondaryUsername() {
+            var username = ($('#secondaryUsername').val() || '').trim();
+            if (!username) {
+                resetSecondaryUserValidation();
+                return;
+            }
+
+            $('#secondaryUsernameStatus').text('Checking username...').css('color', '#666');
+            secondaryUserValidation.valid = false;
+            secondaryUserValidation.checkedUsername = username;
+            secondaryUserValidation.userId = null;
+
+            try {
+                const response = await fetch('validate_secondary_booking_user.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: username,
+                        current_user_id: currentUser ? currentUser.id : null,
+                        enforce_penalty_block: !!((accessRules || {}).block_secondary_user_if_has_penalty)
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success || !result.valid) {
+                    $('#secondaryUsernameStatus').text(result.error || 'Cannot add this username.').css('color', '#dc3545');
+                    return;
+                }
+
+                secondaryUserValidation.valid = true;
+                secondaryUserValidation.userId = result.user_id || null;
+                $('#secondaryUsernameStatus').text('Username verified successfully.').css('color', '#198754');
+            } catch (error) {
+                console.error('Error validating secondary username:', error);
+                $('#secondaryUsernameStatus').text('Unable to validate this username right now.').css('color', '#dc3545');
+            }
+        }
         
         function convertTo12Hour(time24) {
             // time24 format: "HH:MM" (e.g., "08:30", "13:00", "17:45")
@@ -1379,8 +1791,8 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             var checkOutDateTime = new Date(bookingDate + 'T' + checkOut + ':00');
             
             // Calculate time windows
-            var checkInWindow = 15 * 60 * 1000; // 15 minutes in milliseconds
-            var checkOutWindow = 15 * 60 * 1000; // 15 minutes in milliseconds
+            var checkInWindow = 5 * 60 * 1000; // 5 minutes in milliseconds
+            var checkOutWindow = 5 * 60 * 1000; // 5 minutes in milliseconds
             
             var checkInStart = new Date(checkInDateTime.getTime() - checkInWindow);
             var checkInEnd = checkInDateTime;
@@ -1390,7 +1802,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 // Before check-in window
                 return 'upcoming';
             } else if (now >= checkInStart && now < checkInEnd) {
-                // Within check-in window (15 min before to check-in time)
+                // Within check-in window (5 min before to check-in time)
                 return 'in-progress-checkin';
             } else if (now >= checkInEnd && now < checkOutStart) {
                 // Between check-in and check-out window (occupied/in use)
@@ -1476,11 +1888,14 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 }
             }
             
-            // Check for pending penalties (will enable button if no penalties found)
-            await checkPendingPenalties();
-            
             // Load penalty rates from database (for accurate penalty amounts)
             await loadPenaltyRates();
+
+            // Load access rules for booking creation
+            await loadAccessRules();
+
+            // Check for pending penalties after access rules load
+            await checkPendingPenalties();
             
             // Load pods and bookings
             await loadPods();
@@ -1532,6 +1947,13 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 });
                 applyFilters(); // Reapply filters after refresh
             }, 10000); // Update every 10 seconds for real-time status simulation
+
+            if (podLiveStateRefreshTimer) {
+                clearInterval(podLiveStateRefreshTimer);
+            }
+            podLiveStateRefreshTimer = setInterval(function() {
+                warmPodControlStateCache();
+            }, 2000);
             
             // Attach filter event handlers
             $('#filterStatus').on('change', function() {
@@ -1657,7 +2079,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 return;
             }
             
-            if (hasPendingPenalties) {
+            if (shouldBlockBookingForPendingPenalties() && hasPendingPenalties) {
                 // Keep button disabled and grayed out
                 createBookingBtn.prop('disabled', true);
                 createBookingBtn.attr('disabled', 'disabled');
@@ -1716,7 +2138,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 // Load all bookings for the current user
                 const { data: bookings, error: bookingsError } = await supabase
                     .from('bookings')
-                    .select('id, pod_id, booking_date, check_in_time, check_out_time, number_of_people')
+                    .select('id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people, secondary_user_id, secondary_user_username')
                     .eq('user_id', currentUser.id)
                     .order('booking_date', { ascending: false })
                     .order('check_in_time', { ascending: true });
@@ -1745,7 +2167,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 // Map bookings with pod data
                 bookingsData = bookings.map(booking => {
                     var pod = podsData.find(p => p.id === booking.pod_id);
-                    var podName = pod ? (pod.name || 'Pod ' + pod.id) : 'Pod ' + booking.pod_id;
+                    var podName = pod ? (pod.name || 'Pod ' + pod.id) : getFallbackPodName(booking.pod_id);
                     
                     // Handle time formats (could be "HH:MM:SS" or "HH:MM" or timestamp)
                     var checkInTime = '';
@@ -1773,6 +2195,10 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     
                     return {
                         id: booking.id,
+                        createdBy: currentUser.user_metadata?.username || currentUser.email || 'Current User',
+                        createdById: booking.user_id || currentUser.id,
+                        secondaryUser: booking.secondary_user_username || '',
+                        secondaryUserId: booking.secondary_user_id || '',
                         date: booking.booking_date,
                         room: booking.pod_id,
                         roomName: podName,
@@ -1791,18 +2217,368 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     return a.checkIn.localeCompare(b.checkIn);
                 });
                 
-                // Populate table with loaded data
-                populateBookingsTable();
-            } catch (error) {
-                console.error('Error in loadBookings:', error);
-                bookingsData = [];
-                populateBookingsTable();
+            // Populate table with loaded data
+            populateBookingsTable();
+            warmPodControlStateCache();
+        } catch (error) {
+            console.error('Error in loadBookings:', error);
+            bookingsData = [];
+            populateBookingsTable();
             }
         }
         
         function getPodCapacity(podId) {
             var pod = podsData.find(p => p.id === podId);
             return pod ? (pod.capacity || 1) : 1;
+        }
+
+        function escapeHtml(value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function getBookingById(bookingId) {
+            return bookingsData.find(function(booking) {
+                return String(booking.id) === String(bookingId);
+            }) || null;
+        }
+
+        async function fetchJsonWithTimeout(url, options, timeoutMs) {
+            var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            var requestOptions = Object.assign({ cache: 'no-store' }, options || {});
+            var timeoutHandle = null;
+
+            if (controller) {
+                requestOptions.signal = controller.signal;
+                timeoutHandle = setTimeout(function() {
+                    controller.abort();
+                }, timeoutMs || 1800);
+            }
+
+            try {
+                var response = await fetch(url, requestOptions);
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                return null;
+            } finally {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+            }
+        }
+
+        async function fetchJsonLikePods(url, options) {
+            try {
+                var response = await fetch(url, Object.assign({ cache: 'no-store' }, options || {}));
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        async function fetchPodControlState(booking) {
+            var podId = booking.room;
+            var results = await Promise.allSettled([
+                fetchJsonLikePods(LIVE_METRICS_API),
+                fetchJsonLikePods(LIGHT_API + '?pod_id=' + encodeURIComponent(podId)),
+                fetchJsonLikePods(FAN_API)
+            ]);
+
+            var metricsPayload = results[0].status === 'fulfilled' ? results[0].value : null;
+            var lightPayload = results[1].status === 'fulfilled' ? results[1].value : null;
+            var fanPayload = results[2].status === 'fulfilled' ? results[2].value : null;
+
+            return {
+                podId: podId,
+                temperature: metricsPayload && metricsPayload.ok ? metricsPayload.temperature : null,
+                humidity: metricsPayload && metricsPayload.ok ? metricsPayload.humidity : null,
+                aqi: metricsPayload && metricsPayload.ok ? metricsPayload.aqi : null,
+                lightOn: !!(lightPayload && lightPayload.ok && lightPayload.esp_response && lightPayload.esp_response.light_on),
+                fanMode: (fanPayload && fanPayload.ok && fanPayload.esp_response && fanPayload.esp_response.fan_mode) ? fanPayload.esp_response.fan_mode : 'A',
+                fanSpeed: (fanPayload && fanPayload.ok && fanPayload.esp_response && typeof fanPayload.esp_response.fan_speed === 'number')
+                    ? fanPayload.esp_response.fan_speed
+                    : 0,
+                loading: false
+            };
+        }
+
+        async function warmPodControlStateCache() {
+            if (!Array.isArray(bookingsData) || bookingsData.length === 0) {
+                return;
+            }
+            var bookingsByPod = {};
+            bookingsData.forEach(function(booking) {
+                if (!booking || !booking.room) return;
+                var key = String(booking.room);
+                if (!bookingsByPod[key]) {
+                    bookingsByPod[key] = booking;
+                }
+            });
+
+            var bookingList = Object.keys(bookingsByPod).map(function(key) {
+                return bookingsByPod[key];
+            });
+            if (bookingList.length === 0) {
+                return;
+            }
+
+            var results = await Promise.allSettled(bookingList.map(function(booking) {
+                return fetchPodControlState(booking).then(function(state) {
+                    podModalStateCache[String(booking.id)] = state;
+                    return state;
+                });
+            }));
+
+            if (currentPodModalBookingId) {
+                var currentBooking = getBookingById(currentPodModalBookingId);
+                if (currentBooking) {
+                    var currentIndex = bookingList.findIndex(function(booking) {
+                        return String(booking.id) === String(currentPodModalBookingId);
+                    });
+                    if (currentIndex >= 0 && results[currentIndex] && results[currentIndex].status === 'fulfilled') {
+                        renderPodControlsModal(currentBooking, results[currentIndex].value);
+                    }
+                }
+            }
+        }
+
+        function renderPodControlsModal(booking, state) {
+            state = state || {};
+            var temperatureText = (typeof state.temperature === 'number') ? state.temperature.toFixed(1) + '&deg;C' : 'NULL';
+            var humidityText = (typeof state.humidity === 'number') ? state.humidity.toFixed(1) + '%' : 'NULL';
+            var aqiText = (typeof state.aqi === 'number') ? String(state.aqi) : 'NULL';
+            var lightLabel = state.lightOn ? 'Turn Light Off' : 'Turn Light On';
+            var lightClass = state.lightOn ? 'is-on' : 'is-off';
+            var fanMode = state.fanMode === 'M' ? 'M' : 'A';
+            var fanSpeed = Math.max(0, Math.min(5, parseInt(state.fanSpeed, 10) || 0));
+            var isManual = fanMode === 'M';
+            var loadingHtml = state.loading ? '<div class="pods-loading-row">Syncing live pod data...</div>' : '';
+
+            $('#podControlsContent').html(`
+                ${loadingHtml}
+                <div class="booking-details-grid" style="margin-bottom:20px;">
+                    <div class="booking-detail-row">
+                        <label class="detail-label">Pod Number</label>
+                        <div class="detail-value">${escapeHtml(booking.roomName)}</div>
+                    </div>
+                    <div class="booking-detail-row">
+                        <label class="detail-label">Time Slot</label>
+                        <div class="detail-value">${escapeHtml(convertTo12Hour(booking.checkIn))} - ${escapeHtml(convertTo12Hour(booking.checkOut))}</div>
+                    </div>
+                </div>
+                <div class="pods-modal-grid">
+                    <div class="pods-metric-card">
+                        <div class="pods-card-label">Temperature</div>
+                        <div class="pods-card-value">${temperatureText}</div>
+                        <div class="pods-card-subtext">Latest live reading from the pod.</div>
+                    </div>
+                    <div class="pods-metric-card">
+                        <div class="pods-card-label">Humidity</div>
+                        <div class="pods-card-value">${humidityText}</div>
+                        <div class="pods-card-subtext">Latest live reading from the pod.</div>
+                    </div>
+                    <div class="pods-metric-card">
+                        <div class="pods-card-label">AQI Index</div>
+                        <div class="pods-card-value">${aqiText}</div>
+                        <div class="pods-card-subtext">Air quality reported by the controller.</div>
+                    </div>
+                    <div class="pods-control-card">
+                        <div class="pods-card-label">Light</div>
+                        <button type="button" class="pods-light-toggle ${lightClass}" onclick="toggleDashboardPodLight()">${lightLabel}</button>
+                        <div class="pods-card-subtext">This always reflects the current ESP32 light state.</div>
+                    </div>
+                    <div class="pods-control-card full-width">
+                        <div class="pods-card-label">Fan Speed</div>
+                        <div class="pods-fan-row">
+                            <button type="button" class="pods-fan-mode" onclick="toggleDashboardFanMode()">${fanMode}</button>
+                            <div class="pods-fan-speed">
+                                <button type="button" class="pods-fan-btn" onclick="changeDashboardFanSpeed(-1)" ${!isManual || fanSpeed === 0 ? 'disabled' : ''}>-</button>
+                                <span class="pods-fan-value">${fanSpeed}</span>
+                                <button type="button" class="pods-fan-btn" onclick="changeDashboardFanSpeed(1)" ${!isManual || fanSpeed === 5 ? 'disabled' : ''}>+</button>
+                            </div>
+                        </div>
+                        <div class="pods-live-note">Mode A follows the controller automatically. Switch to M for manual speed control.</div>
+                    </div>
+                    <div class="pods-control-card full-width">
+                        <div class="pods-card-label">Checkout</div>
+                        <button type="button" class="btn-modal-close" style="width:100%; border-radius:12px;" onclick="checkoutCurrentBooking()">
+                            <i class="fa fa-sign-out"></i> Checkout
+                        </button>
+                        <div class="pods-live-note">After checkout completes, motion detected inside the pod will create a late-checkout penalty for both booked users.</div>
+                    </div>
+                </div>
+            `);
+        }
+
+        async function refreshPodControlsModal() {
+            if (!currentPodModalBookingId) {
+                return;
+            }
+            var booking = getBookingById(currentPodModalBookingId);
+            if (!booking) {
+                closePodControlsModal();
+                return;
+            }
+            try {
+                var state = await fetchPodControlState(booking);
+                podModalStateCache[String(booking.id)] = state;
+                renderPodControlsModal(booking, state);
+            } catch (error) {
+                console.error('Error refreshing pod controls modal:', error);
+            }
+        }
+
+        async function openPodControlsModal(bookingId) {
+            currentPodModalBookingId = bookingId;
+            var booking = getBookingById(bookingId);
+            if (!booking) return;
+            $('#podControlsModal').addClass('active');
+            $('body').css('overflow', 'hidden');
+            var cachedState = podModalStateCache[String(bookingId)] || {
+                podId: booking.room,
+                temperature: null,
+                humidity: null,
+                aqi: null,
+                lightOn: false,
+                fanMode: 'A',
+                fanSpeed: 0
+            };
+            renderPodControlsModal(booking, Object.assign({}, cachedState, { loading: true }));
+            refreshPodControlsModal();
+            if (podModalRefreshTimer) {
+                clearInterval(podModalRefreshTimer);
+            }
+            podModalRefreshTimer = setInterval(refreshPodControlsModal, 2000);
+        }
+
+        function closePodControlsModal() {
+            if (podModalRefreshTimer) {
+                clearInterval(podModalRefreshTimer);
+                podModalRefreshTimer = null;
+            }
+            currentPodModalBookingId = null;
+            $('#podControlsModal').removeClass('active');
+            $('body').css('overflow', '');
+        }
+
+        async function toggleDashboardPodLight() {
+            if (!currentPodModalBookingId) return;
+            var booking = getBookingById(currentPodModalBookingId);
+            if (!booking) return;
+            try {
+                var currentState = podModalStateCache[String(booking.id)] || await fetchPodControlState(booking);
+                await fetchJsonWithTimeout(LIGHT_API + '?pod_id=' + encodeURIComponent(booking.room), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ light_on: !currentState.lightOn })
+                }, 1500);
+                await refreshPodControlsModal();
+            } catch (error) {
+                console.error('Error toggling pod light:', error);
+            }
+        }
+
+        async function toggleDashboardFanMode() {
+            if (!currentPodModalBookingId) return;
+            var booking = getBookingById(currentPodModalBookingId);
+            if (!booking) return;
+            try {
+                var currentState = podModalStateCache[String(booking.id)] || await fetchPodControlState(booking);
+                var nextMode = currentState.fanMode === 'M' ? 'A' : 'M';
+                var nextSpeed = nextMode === 'A' ? currentState.fanSpeed : Math.max(1, currentState.fanSpeed || 3);
+                var optimisticState = Object.assign({}, currentState, { fanMode: nextMode, fanSpeed: nextSpeed, loading: false });
+                podModalStateCache[String(booking.id)] = optimisticState;
+                renderPodControlsModal(booking, optimisticState);
+
+                var response = await fetchJsonLikePods(FAN_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fan_speed: nextSpeed, fan_mode: nextMode })
+                });
+                if (response && response.ok === true && response.esp_response) {
+                    var confirmedState = Object.assign({}, optimisticState, {
+                        fanMode: response.esp_response.fan_mode || nextMode,
+                        fanSpeed: typeof response.esp_response.fan_speed === 'number' ? response.esp_response.fan_speed : nextSpeed,
+                        loading: false
+                    });
+                    podModalStateCache[String(booking.id)] = confirmedState;
+                    renderPodControlsModal(booking, confirmedState);
+                    return;
+                }
+                console.warn('Fan mode update did not return a normal response, keeping optimistic UI state:', response);
+            } catch (error) {
+                console.error('Error toggling fan mode:', error);
+            }
+        }
+
+        async function changeDashboardFanSpeed(change) {
+            if (!currentPodModalBookingId) return;
+            var booking = getBookingById(currentPodModalBookingId);
+            if (!booking) return;
+            try {
+                var currentState = podModalStateCache[String(booking.id)] || await fetchPodControlState(booking);
+                if (currentState.fanMode !== 'M') return;
+                var nextSpeed = Math.max(0, Math.min(5, (parseInt(currentState.fanSpeed, 10) || 0) + change));
+                var optimisticState = Object.assign({}, currentState, { fanMode: 'M', fanSpeed: nextSpeed, loading: false });
+                podModalStateCache[String(booking.id)] = optimisticState;
+                renderPodControlsModal(booking, optimisticState);
+
+                var response = await fetchJsonLikePods(FAN_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fan_speed: nextSpeed, fan_mode: 'M' })
+                });
+                if (response && response.ok === true && response.esp_response) {
+                    var confirmedState = Object.assign({}, optimisticState, {
+                        fanMode: response.esp_response.fan_mode || 'M',
+                        fanSpeed: typeof response.esp_response.fan_speed === 'number' ? response.esp_response.fan_speed : nextSpeed,
+                        loading: false
+                    });
+                    podModalStateCache[String(booking.id)] = confirmedState;
+                    renderPodControlsModal(booking, confirmedState);
+                    return;
+                }
+                console.warn('Fan speed update did not return a normal response, keeping optimistic UI state:', response);
+            } catch (error) {
+                console.error('Error changing fan speed:', error);
+            }
+        }
+
+        async function checkoutCurrentBooking() {
+            if (!currentPodModalBookingId) return;
+            var booking = getBookingById(currentPodModalBookingId);
+            if (!booking || !currentUser) return;
+            if (!confirm('Complete checkout for this booking now?')) {
+                return;
+            }
+
+            try {
+                var response = await fetchJsonLikePods(CHECKOUT_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        booking_id: booking.id,
+                        pod_id: booking.room,
+                        primary_user_id: booking.createdById || currentUser.id,
+                        secondary_user_id: booking.secondaryUserId || ''
+                    })
+                });
+
+                if (!response || response.ok !== true) {
+                    alert('Checkout failed. Please try again.');
+                    return;
+                }
+
+                alert('Checkout complete. The room display will show Checkout Complete.');
+                await refreshPodControlsModal();
+            } catch (error) {
+                console.error('Error completing checkout:', error);
+                alert('Checkout failed. Please try again.');
+            }
         }
         
         function populateBookingsTable() {
@@ -1826,7 +2602,9 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 
                 // Check if booking can be cancelled
                 var canCancel = canCancelBooking(status);
+                var canOpenPods = status !== 'completed';
                 var cancelButtonHtml = '';
+                var podsButtonHtml = '';
                 
                 if (canCancel) {
                     // Booking can be cancelled - show active cancel button
@@ -1834,6 +2612,12 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 } else {
                     // Booking is in progress - show disabled/grayed out button
                     cancelButtonHtml = '<button class="btn btn-danger btn-sm btn-delete disabled" disabled title="Cannot cancel booking that is in progress"><i class="fa fa-times"></i> Cancel</button>';
+                }
+
+                if (canOpenPods) {
+                    podsButtonHtml = '<button class="btn btn-sm btn-pods" onclick="openPodControlsModal(\'' + booking.id + '\')"><i class="fa fa-building"></i> Pods</button>';
+                } else {
+                    podsButtonHtml = '<button class="btn btn-sm btn-pods disabled" disabled title="Pod controls are unavailable for completed bookings"><i class="fa fa-building"></i> Pods</button>';
                 }
                 
                 var row = '<tr data-status="' + status + '" data-date="' + booking.date + '" data-pod="' + booking.room + '" data-booking-id="' + booking.id + '">' +
@@ -1846,6 +2630,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     '<td>' +
                         '<div class="action-buttons">' +
                             '<button class="btn btn-info btn-sm btn-view" onclick="openBookingModal(\'' + booking.id + '\')"><i class="fa fa-eye"></i> View</button>' +
+                            podsButtonHtml +
                             cancelButtonHtml +
                         '</div>' +
                     '</td>' +
@@ -2001,8 +2786,18 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     </div>
                     
                     <div class="booking-detail-row">
+                        <label class="detail-label">Created By</label>
+                        <div class="detail-value">${booking.createdBy || 'N/A'}</div>
+                    </div>
+
+                    <div class="booking-detail-row">
                         <label class="detail-label">Number of Occupants</label>
                         <div class="detail-value">${booking.occupants} ${booking.occupants === 1 ? 'Person' : 'People'}</div>
+                    </div>
+
+                    <div class="booking-detail-row">
+                        <label class="detail-label">Secondary User</label>
+                        <div class="detail-value">${booking.secondaryUser ? booking.secondaryUser : 'None'}</div>
                     </div>
                     
                     <div class="booking-detail-row full-width">
@@ -2028,13 +2823,14 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         }
         
         // Create Booking Modal functions
-        function openCreateBookingModal() {
+        async function openCreateBookingModal() {
             // Check if user has pending penalties
-            if (hasPendingPenalties) {
+            if (shouldBlockBookingForPendingPenalties() && hasPendingPenalties) {
                 alert('⚠️ Cannot Create Booking\n\nYou have unpaid penalties. Please pay your penalties before creating a new booking.\n\nYou can view and pay your penalties in the Penalties section.');
                 return;
             }
-            
+            await loadAccessRules();
+
             $('#createBookingModal').addClass('active');
             $('body').css('overflow', 'hidden');
             
@@ -2051,62 +2847,33 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             $('#checkInTime').val('');
             $('#checkOutTime').prop('disabled', true).html('<option value="">Select check-out time...</option>');
             $('#numberOfPeople').val('');
+            $('#allowSecondaryAccess').prop('checked', false);
+            $('#secondaryUsername').val('');
             $('#peakHourWarning').hide();
             $('#bufferTimeWarning').hide();
-            
-            // Enable all check-in time options initially (will be updated when date is selected)
-            $('#checkInTime option').each(function() {
-                $(this).prop('disabled', false);
-                $(this).css('color', '');
-            });
+            resetSecondaryUserValidation();
+            renderAccessRulesSummary();
+            syncSecondaryAccessRuleUi();
+            rebuildCheckInTimeOptions();
         }
         
         // Update check-in time options based on selected date (disable past times for today)
         function updateCheckInTimeOptions() {
             var bookingDate = $('#bookingDate').val();
-            if (!bookingDate) return;
-            
-            // Check if booking is for today
-            var today = new Date();
-            var todayStart = new Date(today);
-            todayStart.setHours(0, 0, 0, 0);
-            var selectedDate = new Date(bookingDate + 'T00:00:00');
-            var isToday = selectedDate.getTime() === todayStart.getTime();
-            
-            if (isToday) {
-                // For today's bookings, disable times that are less than 15 minutes from now
-                var now = new Date();
-                var currentHour = now.getHours();
-                var currentMinute = now.getMinutes();
-                var currentTimeInMinutes = currentHour * 60 + currentMinute;
-                var bufferMinutes = 15;
-                var minCheckInTimeInMinutes = currentTimeInMinutes + bufferMinutes;
-                
-                // Disable check-in time options that are too soon
-                $('#checkInTime option').each(function() {
-                    var optionValue = $(this).val();
-                    if (optionValue && optionValue !== '') {
-                        var timeParts = optionValue.split(':');
-                        var optionHour = parseInt(timeParts[0]);
-                        var optionMinute = parseInt(timeParts[1]);
-                        var optionTimeInMinutes = optionHour * 60 + optionMinute;
-                        
-                        if (optionTimeInMinutes < minCheckInTimeInMinutes) {
-                            $(this).prop('disabled', true);
-                            $(this).css('color', '#999');
-                        } else {
-                            $(this).prop('disabled', false);
-                            $(this).css('color', '');
-                        }
-                    }
-                });
-            } else {
-                // For future dates, enable all options
-                $('#checkInTime option').each(function() {
-                    $(this).prop('disabled', false);
-                    $(this).css('color', '');
-                });
+            if (!bookingDate) {
+                rebuildCheckInTimeOptions();
+                return;
             }
+
+            if (isDateWithinBlackout(bookingDate)) {
+                alert('This booking date falls within a blackout date and cannot be selected.');
+                $('#bookingDate').val('');
+                rebuildCheckInTimeOptions();
+                $('#checkOutTime').prop('disabled', true).html('<option value="">Select check-out time...</option>');
+                return;
+            }
+
+            rebuildCheckInTimeOptions();
         }
         
         function closeCreateBookingModal() {
@@ -2121,13 +2888,51 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             $('#checkInTime').val('');
             $('#checkOutTime').prop('disabled', true).html('<option value="">Select check-out time...</option>');
             $('#numberOfPeople').val('');
+            $('#allowSecondaryAccess').prop('checked', false);
+            $('#secondaryUsername').val('');
             $('#peakHourWarning').hide();
             $('#bufferTimeWarning').hide();
+            resetSecondaryUserValidation();
+            syncSecondaryAccessRuleUi();
             
             // Restore the date
             if (currentDate) {
                 $('#bookingDate').val(currentDate);
             }
+        }
+
+        function rebuildCheckInTimeOptions() {
+            var bookingDate = $('#bookingDate').val();
+            var operationRange = getOperationRange();
+            var options = '<option value="">Select check-in time...</option>';
+
+            if (!operationRange) {
+                $('#checkInTime').html(options);
+                return;
+            }
+
+            var slots = generateTimeSlots(operationRange.start, operationRange.end - 15);
+            var today = new Date();
+            var todayStart = new Date(today);
+            todayStart.setHours(0, 0, 0, 0);
+            var selectedDate = bookingDate ? new Date(bookingDate + 'T00:00:00') : null;
+            var isToday = selectedDate && selectedDate.getTime() === todayStart.getTime();
+            var minCheckInTimeInMinutes = null;
+
+            if (isToday) {
+                minCheckInTimeInMinutes = (today.getHours() * 60) + today.getMinutes() + 15;
+            }
+
+            slots.forEach(function(time) {
+                var timeParts = time.split(':');
+                var totalMinutes = parseInt(timeParts[0], 10) * 60 + parseInt(timeParts[1], 10);
+                if (minCheckInTimeInMinutes !== null && totalMinutes < minCheckInTimeInMinutes) {
+                    return;
+                }
+                options += '<option value="' + time + '">' + convertTo12Hour(time) + '</option>';
+            });
+
+            $('#checkInTime').html(options);
         }
         
         // Validate booking times and show buffer warning if needed
@@ -2204,22 +3009,27 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             var checkInParts = checkInTime.split(':');
             var checkInHour = parseInt(checkInParts[0]);
             var checkInMinute = parseInt(checkInParts[1]);
-            
-            // Determine if we're in peak hours (8:00 AM - 5:00 PM)
-            var isPeakHours = checkInHour >= 8 && checkInHour < 17;
-            
-            // Calculate maximum allowed check-out time
-            var maxCheckOutHour, maxCheckOutMinute;
-            
+            var checkInTimeInMinutes = checkInHour * 60 + checkInMinute;
+            var peakRange = getPeakRange();
+            var operationRange = getOperationRange();
+            var isPeakHours = peakRange && isTimeWithinRange(checkInTime, peakRange);
+            var maxCheckOutInMinutes = operationRange ? operationRange.end : (20 * 60);
+            var minCheckOutInMinutes = checkInTimeInMinutes + 15;
+
             if (isPeakHours) {
-                // Peak hours: maximum 1 hour
-                maxCheckOutHour = checkInHour + 1;
-                maxCheckOutMinute = checkInMinute;
-                $('#peakHourWarning').show();
+                minCheckOutInMinutes = checkInTimeInMinutes + parseInt((accessRules || {}).peak_min_duration_mins || 30, 10);
+                maxCheckOutInMinutes = Math.min(
+                    maxCheckOutInMinutes,
+                    checkInTimeInMinutes + parseInt((accessRules || {}).peak_max_duration_mins || 180, 10)
+                );
+                $('#peakHourWarning').text(
+                    'Peak hours (' + ((accessRules || {}).peak_hours || '08:00-17:00') + '): booking must be between '
+                    + parseInt((accessRules || {}).peak_min_duration_mins || 30, 10)
+                    + ' and '
+                    + parseInt((accessRules || {}).peak_max_duration_mins || 180, 10)
+                    + ' minutes.'
+                ).show();
             } else {
-                // Off-peak: can book until 8:00 PM
-                maxCheckOutHour = 20;
-                maxCheckOutMinute = 0;
                 $('#peakHourWarning').hide();
             }
             
@@ -2241,34 +3051,14 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 var minCheckOutMinute = minCheckOutTimeInMinutes % 60;
                 
                 // Adjust max check-out if needed (but don't go below check-in time)
-                var checkOutTimeInMinutes = maxCheckOutHour * 60 + maxCheckOutMinute;
-                var checkInTimeInMinutes = checkInHour * 60 + checkInMinute;
-                if (checkOutTimeInMinutes < minCheckOutTimeInMinutes && minCheckOutTimeInMinutes > checkInTimeInMinutes) {
-                    maxCheckOutHour = minCheckOutHour;
-                    maxCheckOutMinute = minCheckOutMinute;
+                if (maxCheckOutInMinutes < minCheckOutTimeInMinutes && minCheckOutTimeInMinutes > checkInTimeInMinutes) {
+                    maxCheckOutInMinutes = minCheckOutTimeInMinutes;
                 }
             }
             
             // Generate check-out options
             var checkOutOptions = '<option value="">Select check-out time...</option>';
-            var allTimes = [
-                '08:00', '08:15', '08:30', '08:45',
-                '09:00', '09:15', '09:30', '09:45',
-                '10:00', '10:15', '10:30', '10:45',
-                '11:00', '11:15', '11:30', '11:45',
-                '12:00', '12:15', '12:30', '12:45',
-                '13:00', '13:15', '13:30', '13:45',
-                '14:00', '14:15', '14:30', '14:45',
-                '15:00', '15:15', '15:30', '15:45',
-                '16:00', '16:15', '16:30', '16:45',
-                '17:00', '17:15', '17:30', '17:45',
-                '18:00', '18:15', '18:30', '18:45',
-                '19:00', '19:15', '19:30', '19:45',
-                '20:00'
-            ];
-            
-            var checkInTimeInMinutes = checkInHour * 60 + checkInMinute;
-            var maxCheckOutInMinutes = maxCheckOutHour * 60 + maxCheckOutMinute;
+            var allTimes = operationRange ? generateTimeSlots(operationRange.start + 15, operationRange.end) : [];
             
             allTimes.forEach(function(time) {
                 var timeParts = time.split(':');
@@ -2276,8 +3066,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 var minute = parseInt(timeParts[1]);
                 var timeInMinutes = hour * 60 + minute;
                 
-                // Check if this time is after check-in and within allowed range
-                if (timeInMinutes > checkInTimeInMinutes && timeInMinutes <= maxCheckOutInMinutes) {
+                if (timeInMinutes >= minCheckOutInMinutes && timeInMinutes <= maxCheckOutInMinutes) {
                     checkOutOptions += '<option value="' + time + '">' + convertTo12Hour(time) + '</option>';
                 }
             });
@@ -2296,11 +3085,39 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             var checkIn = $('#checkInTime').val();
             var checkOut = $('#checkOutTime').val();
             var numberOfPeople = parseInt($('#numberOfPeople').val());
+            var allowSecondaryAccess = $('#allowSecondaryAccess').is(':checked');
+            var secondaryUsername = ($('#secondaryUsername').val() || '').trim();
             
             // Validate inputs
             if (!bookingDate || !checkIn || !checkOut || !numberOfPeople) {
                 alert('Please fill in all required fields.');
                 return;
+            }
+
+            if (isDateWithinBlackout(bookingDate)) {
+                alert('This booking date falls within a blackout date and cannot be booked.');
+                return;
+            }
+
+            var operationRange = getOperationRange();
+            if (operationRange) {
+                var checkInMinutes = parseInt(checkIn.split(':')[0], 10) * 60 + parseInt(checkIn.split(':')[1], 10);
+                var checkOutMinutes = parseInt(checkOut.split(':')[0], 10) * 60 + parseInt(checkOut.split(':')[1], 10);
+                if (checkInMinutes < operationRange.start || checkOutMinutes > operationRange.end) {
+                    alert('Selected time is outside the allowed operation time window.');
+                    return;
+                }
+            }
+
+            if (allowSecondaryAccess) {
+                if (((accessRules || {}).face_verification_mode || 'single') !== 'dual') {
+                    alert('Secondary user access is only available when Access Rules are set to Dual Person.');
+                    return;
+                }
+                if (!secondaryUsername || !secondaryUserValidation.valid || secondaryUserValidation.checkedUsername.toLowerCase() !== secondaryUsername.toLowerCase()) {
+                    alert('Please enter and validate a valid second user username before creating the booking.');
+                    return;
+                }
             }
             
             // Validate booking date is not in the past
@@ -2353,6 +3170,17 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 alert('Check-out time must be after check-in time.');
                 return;
             }
+
+            if (isTimeWithinRange(checkIn, getPeakRange())) {
+                var bookingDurationMinutes = (parseInt(checkOut.split(':')[0], 10) * 60 + parseInt(checkOut.split(':')[1], 10))
+                    - (parseInt(checkIn.split(':')[0], 10) * 60 + parseInt(checkIn.split(':')[1], 10));
+                var peakMin = parseInt((accessRules || {}).peak_min_duration_mins || 30, 10);
+                var peakMax = parseInt((accessRules || {}).peak_max_duration_mins || 180, 10);
+                if (bookingDurationMinutes < peakMin || bookingDurationMinutes > peakMax) {
+                    alert('Peak-hour bookings must be between ' + peakMin + ' and ' + peakMax + ' minutes.');
+                    return;
+                }
+            }
             
             try {
                 // Check for overlapping bookings for the current user
@@ -2397,7 +3225,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             if (overlappingBooking) {
                     var bCheckIn = overlappingBooking.check_in_time.substring(0, 5);
                     var bCheckOut = overlappingBooking.check_out_time.substring(0, 5);
-                    alert('⚠️ Overlapping Booking Detected\n\nYou cannot create overlapping bookings.\n\nYou already have a booking:\n\nBooking ID: ' + overlappingBooking.id + '\nPod: Pod ' + overlappingBooking.pod_id + '\nTime: ' + convertTo12Hour(bCheckIn) + ' - ' + convertTo12Hour(bCheckOut) + '\n\nPlease select a different time slot.');
+                    alert('⚠️ Overlapping Booking Detected\n\nYou cannot create overlapping bookings.\n\nYou already have a booking:\n\nBooking ID: ' + overlappingBooking.id + '\nPod: ' + getFallbackPodName(overlappingBooking.pod_id) + '\nTime: ' + convertTo12Hour(bCheckIn) + ' - ' + convertTo12Hour(bCheckOut) + '\n\nPlease select a different time slot.');
                 return;
             }
             
@@ -2586,7 +3414,9 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                             booking_date: bookingDate,
                             check_in_time: checkIn + ':00',
                             check_out_time: checkOut + ':00',
-                            number_of_people: numberOfPeople
+                            number_of_people: numberOfPeople,
+                            secondary_user_id: allowSecondaryAccess ? secondaryUserValidation.userId : null,
+                            secondary_user_username: allowSecondaryAccess ? secondaryUsername : null
                         }
                     ])
                     .select()
@@ -2598,6 +3428,8 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     var errorMsg = insertError.message || insertError.toString() || '';
                     if (errorMsg.includes('does not exist') || errorMsg.includes('relation') || errorMsg.includes('42P01')) {
                         alert('⚠️ Database Setup Required\n\nThe bookings table has not been created yet.\n\nPlease run the SQL script in create_bookings_table.sql in your Supabase SQL Editor to create the table.\n\nSee DATABASE_SETUP.md for detailed instructions.');
+                    } else if (errorMsg.includes('secondary_user_id') || errorMsg.includes('secondary_user_username') || errorMsg.includes('schema cache')) {
+                        alert('Database Setup Required\n\nThe bookings table is missing the secondary user columns for dual-user access.\n\nPlease run:\nadd_secondary_user_fields_to_bookings.sql\n\nThen try creating the booking again.');
                     } else {
                         alert('Error creating booking: ' + (insertError.message || insertError));
                     }
@@ -3042,11 +3874,19 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     closeBookingModal();
                 }
             });
+            $(document).on('click', '#podControlsModal', function(e) {
+                if (e.target.id === 'podControlsModal') {
+                    closePodControlsModal();
+                }
+            });
             
             // Close booking modal with Escape key
             $(document).on('keydown', function(e) {
                 if (e.key === 'Escape' && $('#bookingModal').hasClass('active')) {
                     closeBookingModal();
+                }
+                if (e.key === 'Escape' && $('#podControlsModal').hasClass('active')) {
+                    closePodControlsModal();
                 }
                 if (e.key === 'Escape' && $('#createBookingModal').hasClass('active')) {
                     closeCreateBookingModal();
@@ -3059,6 +3899,19 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     closeCreateBookingModal();
                 }
             });
+
+            $(document).on('input blur', '#secondaryUsername', function() {
+                validateSecondaryUsername();
+            });
+        });
+        
+        window.addEventListener('beforeunload', function() {
+            if (podModalRefreshTimer) {
+                clearInterval(podModalRefreshTimer);
+            }
+            if (podLiveStateRefreshTimer) {
+                clearInterval(podLiveStateRefreshTimer);
+            }
         });
         
         window.addEventListener('pageshow', function(event) { setTimeout(function() { resetSidebar(); }, 50); });

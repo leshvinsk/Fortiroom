@@ -370,10 +370,10 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                             <colgroup>
                                 <col style="width:20%;">
                                 <col style="width:16%;">
-                                <col style="width:16%;">
-                                <col style="width:16%;">
-                                <col style="width:18%;">
-                                <col style="width:14%;">
+                            <col style="width:16%;">
+                            <col style="width:16%;">
+                            <col style="width:18%;">
+                            <col style="width:14%;">
                             </colgroup>
                             <thead>
                                 <tr>
@@ -406,7 +406,6 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 <!-- JS Scripts -->
 <script src="assets/js/jquery-1.10.2.js"></script>
 <script src="assets/js/tailwind-selects.js"></script>
-<script src="assets/js/dataTables/jquery.dataTables.js"></script>
 <script>
     // Global variables
     var supabase = null;
@@ -414,6 +413,13 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     var dataTable = null;
     var bookingsData = [];
     var podsData = [];
+
+    function getFallbackPodName(podId) {
+        if (podsData.length === 1 && String((podsData[0] || {}).name || '').trim() !== '') {
+            return podsData[0].name;
+        }
+        return 'Pod 1';
+    }
     var penaltiesData = [];
     var refreshInterval = null;
 
@@ -453,10 +459,6 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         updateDashboardCards();
         populatePodFilter();
 
-        setTimeout(function() {
-            initializeDataTable();
-        }, 100);
-
         if (refreshInterval) clearInterval(refreshInterval);
         refreshInterval = setInterval(async function() {
             await loadPods();
@@ -464,14 +466,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             await loadPenalties();
             updateDashboardCards();
             populatePodFilter();
-            if (dataTable) {
-                try { dataTable.fnDestroy(); } catch (e) { console.log('Error destroying DataTable:', e); }
-                dataTable = null;
-            }
-            setTimeout(function() {
-                initializeDataTable();
-                applyFilters();
-            }, 100);
+            applyFilters();
         }, 10000);
     });
 
@@ -491,7 +486,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             console.log('Loading all bookings from database...');
             const { data: bookings, error: bookingsError } = await supabase
                 .from('bookings')
-                .select('id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people')
+                .select('id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people, secondary_user_username')
                 .order('booking_date', { ascending: true })
                 .order('check_in_time', { ascending: true });
 
@@ -574,13 +569,17 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
             bookingsData = bookings.map(booking => {
                 var username = usersMap[booking.user_id] || 'User ' + (booking.user_id ? booking.user_id.substring(0, 8) : 'Unknown');
-                var pod = podsMap[booking.pod_id] || { id: booking.pod_id, name: 'Pod ' + (booking.pod_id ? booking.pod_id.substring(0, 8) : 'Unknown') };
+                var secondaryUsername = (booking.secondary_user_username || '').trim();
+                var usernameDisplay = secondaryUsername ? (username + ' / ' + secondaryUsername) : username;
+                var pod = podsMap[booking.pod_id] || { id: booking.pod_id, name: getFallbackPodName(booking.pod_id) };
                 var checkInTime  = booking.check_in_time  ? booking.check_in_time.substring(0, 5)  : '';
                 var checkOutTime = booking.check_out_time ? booking.check_out_time.substring(0, 5) : '';
                 var duration = calculateDuration(checkInTime, checkOutTime);
                 return {
                     id: booking.id,
-                    username: username,
+                    username: usernameDisplay,
+                    primaryUsername: username,
+                    secondaryUsername: secondaryUsername,
                     room: pod.id,
                     roomName: pod.name || 'Pod ' + pod.id,
                     checkIn: checkInTime,
@@ -640,8 +639,8 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         var now = new Date();
         var checkInDateTime  = new Date(bookingDate + 'T' + checkIn + ':00');
         var checkOutDateTime = new Date(bookingDate + 'T' + checkOut + ':00');
-        var checkInWindow  = 15 * 60 * 1000;
-        var checkOutWindow = 15 * 60 * 1000;
+        var checkInWindow  = 5 * 60 * 1000;
+        var checkOutWindow = 5 * 60 * 1000;
         var checkInStart  = new Date(checkInDateTime.getTime() - checkInWindow);
         var checkInEnd    = checkInDateTime;
         var checkOutStart = new Date(checkOutDateTime.getTime() - checkOutWindow);
@@ -674,10 +673,6 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
     function populateBookingsTable() {
         var tbody = $('#bookingsTableBody');
-        if (dataTable) {
-            try { dataTable.fnDestroy(); } catch (e) { console.log('Error destroying DataTable before populate:', e); }
-            dataTable = null;
-        }
         tbody.empty();
         console.log('Populating table with', bookingsData.length, 'bookings');
         if (bookingsData.length === 0) return;
@@ -740,32 +735,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
     }
 
-    function initializeDataTable() {
-        if (dataTable) {
-            try { dataTable.fnDestroy(); } catch (e) { console.log('Error destroying DataTable:', e); }
-            dataTable = null;
-        }
-        var tbody = $('#bookingsTableBody');
-        var hasDataRows = tbody.find('tr').length > 0 && !tbody.find('tr td[colspan]').length;
-        if (!hasDataRows) { console.log('No data rows to initialize DataTable with'); return; }
-        try {
-            dataTable = $('#dataTables-example').dataTable({
-                "order": [[ 2, "asc" ]],
-                "paging": false,
-                "searching": false,
-                "info": false,
-                "autoWidth": false,
-                "columnDefs": [
-                    { "orderable": true, "targets": [2, 3, 4] },
-                    { "orderable": false, "targets": [0, 1, 5] }
-                ]
-            });
-            console.log('DataTable initialized successfully');
-        } catch (error) { console.error('Error initializing DataTable:', error); }
-    }
-
     function applyFilters() {
-        if (!dataTable) { console.log('DataTable not initialized yet'); return; }
         var statusFilter = $('#filterStatus').val();
         var roomFilter   = $('#filterRoom').val();
         var timeFilter   = $('#filterTime').val();

@@ -94,7 +94,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
 
         /* Pod card status top borders */
         .pod-card.available  { border-top: 4px solid #16a34a; }
-        .pod-card.occupied   { border-top: 4px solid #f59e0b; }
+        .pod-card.active     { border-top: 4px solid #f59e0b; }
         .pod-card.maintenance{ border-top: 4px solid #ef4444; }
         .pod-card.cleaning   { border-top: 4px solid #3b82f6; }
         .pod-card.suspended  { border-top: 4px solid #9ca3af; opacity: 0.75; }
@@ -103,7 +103,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         /* Pod status badge */
         .pod-status { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.35px; }
         .pod-status.available   { background: #dcfce7; color: #166534; }
-        .pod-status.occupied    { background: #fef9c3; color: #854d0e; }
+        .pod-status.active      { background: #fef9c3; color: #854d0e; }
         .pod-status.maintenance { background: #fee2e2; color: #991b1b; }
         .pod-status.cleaning    { background: #dbeafe; color: #1e40af; }
         .pod-status.suspended   { background: #f3f4f6; color: #6b7280; }
@@ -164,6 +164,75 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             display: flex;
             align-items: flex-end;
             gap: 6px;
+        }
+        .pod-top-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .light-toggle-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid #d8dee7;
+            background: #ffffff;
+            color: #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+        }
+        .light-toggle-btn:hover:not(:disabled) {
+            border-color: #f59e0b;
+            color: #d97706;
+            background: #fff7ed;
+            transform: translateY(-1px);
+        }
+        .light-toggle-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .light-toggle-btn.is-on {
+            border-color: #fde68a;
+            color: #d97706;
+            background: linear-gradient(180deg, #fff8db 0%, #ffefb5 100%);
+            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.22);
+        }
+        .light-toggle-btn.is-on:hover:not(:disabled) {
+            border-color: #fde68a;
+            color: #d97706;
+            background: linear-gradient(180deg, #fff8db 0%, #ffefb5 100%);
+            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.22);
+        }
+        .light-toggle-btn.is-off {
+            border-color: #d8dee7;
+            color: #94a3b8;
+            background: #ffffff;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+        }
+        .light-toggle-btn.is-off:hover:not(:disabled) {
+            border-color: #d8dee7;
+            color: #94a3b8;
+            background: #ffffff;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+        }
+        .light-toggle-btn.is-pending {
+            opacity: 0.7;
+        }
+        .light-toggle-btn.is-unknown {
+            opacity: 0.55;
+            border-style: dashed;
+        }
+        .light-toggle-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.9;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .door-meta {
             display: flex;
@@ -384,10 +453,24 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     var bookingsData = [];
     var bookingRefreshInterval = null;
     var liveMetricsInterval = null;
-    var simulationInterval = null;
+    var lightStateInterval = null;
     var LIVE_METRICS_API = 'api/pod_metrics.php';
+    var DOOR_UNLOCK_API = 'api/pod_unlock.php';
+    var LIGHT_API = 'api/pod_light.php';
+    var FAN_API = 'api/pod_fan.php';
     var LIVE_METRICS_REFRESH_MS = 1000;
     var LIVE_SENSOR_POD_ID = '1';
+
+    function getLiveSensorPodId() {
+        for (var i = 0; i < podsData.length; i++) {
+            var pod = podsData[i];
+            if (!pod) continue;
+            if (isLiveSensorPod(pod)) {
+                return String(pod.id);
+            }
+        }
+        return String(LIVE_SENSOR_POD_ID);
+    }
 
     document.addEventListener('DOMContentLoaded', async function() {
         const { createClient } = window.supabase || {};
@@ -410,8 +493,9 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         if (liveMetricsInterval) clearInterval(liveMetricsInterval);
         liveMetricsInterval = setInterval(fetchAndApplyLiveMetrics, LIVE_METRICS_REFRESH_MS);
 
-        if (simulationInterval) clearInterval(simulationInterval);
-        simulationInterval = setInterval(simulateNonLivePodUpdates, LIVE_METRICS_REFRESH_MS);
+        if (lightStateInterval) clearInterval(lightStateInterval);
+        lightStateInterval = setInterval(fetchAndApplyLightState, LIVE_METRICS_REFRESH_MS);
+
     });
 
     async function loadBookings() {
@@ -430,14 +514,14 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         var now = new Date();
         var checkInDateTime  = new Date(bookingDate + 'T' + checkIn + ':00');
         var checkOutDateTime = new Date(bookingDate + 'T' + checkOut + ':00');
-        var checkInWindow  = 15 * 60 * 1000;
-        var checkOutWindow = 15 * 60 * 1000;
+        var checkInWindow  = 5 * 60 * 1000;
+        var checkOutWindow = 5 * 60 * 1000;
         var checkInStart  = new Date(checkInDateTime.getTime()  - checkInWindow);
         var checkInEnd    = checkInDateTime;
         var checkOutStart = new Date(checkOutDateTime.getTime() - checkOutWindow);
         if (now < checkInStart) return 'upcoming';
         else if (now >= checkInStart && now < checkInEnd) return 'in-progress-checkin';
-        else if (now >= checkInEnd && now < checkOutStart) return 'in-progress-occupied';
+        else if (now >= checkInEnd && now < checkOutStart) return 'in-progress-active';
         else if (now >= checkOutStart && now < checkOutDateTime) return 'in-progress-checkout';
         else return 'completed';
     }
@@ -450,7 +534,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 var checkOutTime = booking.check_out_time ? booking.check_out_time.substring(0, 5) : '';
                 if (checkInTime && checkOutTime) {
                     var status = getBookingStatus(booking.booking_date, checkInTime, checkOutTime);
-                    if (status === 'in-progress-checkin' || status === 'in-progress-occupied' || status === 'in-progress-checkout') return true;
+                    if (status === 'in-progress-checkin' || status === 'in-progress-active' || status === 'in-progress-checkout') return true;
                 }
             }
         }
@@ -464,11 +548,22 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 var pod = podsData[i];
                 if (pod.status === 'suspended') continue;
                 var hasActive = hasActiveBooking(pod.id);
-                var newStatus = hasActive ? 'occupied' : 'idle';
+                var newStatus = hasActive ? 'active' : 'idle';
                 if (pod.status !== newStatus) {
                     const { error: updateError } = await supabase.from('pods').update({ status: newStatus }).eq('id', pod.id);
                     if (updateError) { console.error('Error updating pod status for pod ' + pod.id + ':', updateError); }
-                    else { pod.status = newStatus; }
+                    else {
+                        pod.status = newStatus;
+                        if (!pod.suspended) {
+                            pod.fanMode = 'A';
+                            pod.fanSpeed = hasActive ? 3 : 0;
+                            await syncPodFanState(pod);
+                            if (!hasActive) {
+                                pod.lightOn = false;
+                                await syncPodLightState(pod, false);
+                            }
+                        }
+                    }
                 }
             }
             renderPodCards();
@@ -486,33 +581,32 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             podsData = (data || []).map(pod => {
                 var isSuspended = pod.status === 'suspended';
                 var usesLiveMetrics = !isSuspended && isLiveSensorPod(pod);
-                var simulatedFanSpeed = isSuspended ? null : 3;
-                var simulatedFanMode  = isSuspended ? null : 'M';
-                var simulatedTemp = (!isSuspended && !usesLiveMetrics) ? calculateTargetTemperature(simulatedFanSpeed) : null;
-                var simulatedHumidity = (!isSuspended && !usesLiveMetrics) ? (55 + (Math.random() * 10 - 5)) : null;
-                var simulatedAqi = (!isSuspended && !usesLiveMetrics) ? (30 + Math.floor(Math.random() * 20)) : null;
                 var initialStatus = pod.status || 'idle';
                 if (!isSuspended && bookingsData.length > 0) {
-                    initialStatus = hasActiveBooking(pod.id) ? 'occupied' : 'idle';
+                    initialStatus = hasActiveBooking(pod.id) ? 'active' : 'idle';
                 }
                 return {
                     id: pod.id, name: pod.name || `Pod ${pod.id}`,
                     capacity: pod.capacity || 1, hardwareId: pod.hardware_id || '',
                     status: initialStatus,
-                    temperature: usesLiveMetrics ? null : simulatedTemp,
-                    humidity: usesLiveMetrics ? null : simulatedHumidity,
-                    fanSpeed: simulatedFanSpeed, fanMode: simulatedFanMode,
-                    aqi: usesLiveMetrics ? null : simulatedAqi,
+                    temperature: null,
+                    humidity: null,
+                    fanSpeed: isSuspended ? null : (initialStatus === 'active' ? 3 : 0), fanMode: isSuspended ? null : 'A',
+                    aqi: null,
                     suspended: isSuspended, usesLiveMetrics: usesLiveMetrics,
                     doorTriggerPhase: 'idle',
+                    lightOn: false,
+                    lightBusy: false,
+                    lightKnown: !usesLiveMetrics,
                     _doorTimers: [],
                     savedState: pod.saved_state ? (typeof pod.saved_state === 'string' ? JSON.parse(pod.saved_state) : pod.saved_state) : null
                 };
             });
 
             await updatePodStatusesFromBookings();
-            renderPodCards();
             await fetchAndApplyLiveMetrics();
+            await fetchAndApplyLightState();
+            renderPodCards();
         } catch (error) { console.error('Error in loadPods:', error); alert('Failed to load pods: ' + error.message); }
     }
 
@@ -570,17 +664,20 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         return String(pod.id) === String(LIVE_SENSOR_POD_ID) || podName === 'pod 1';
     }
 
-    function getPodDisplayName(pod) {
-        var baseName = (pod && pod.name) ? pod.name : ('Pod ' + (pod ? pod.id : ''));
-        if (!pod || pod.usesLiveMetrics) return baseName;
-        if (String(baseName).trim().toLowerCase() === 'pod 2') return 'Pod 2 (SIM)';
-        return baseName;
+    function getLightButtonTitle(pod) {
+        if (!pod || pod.suspended) return 'Light unavailable';
+        if (!pod.lightKnown) return 'Loading live light status...';
+        if (pod.lightBusy) return 'Updating light...';
+        return pod.lightOn ? 'Turn light off' : 'Turn light on';
     }
 
-    function calculateTargetTemperature(fanSpeed) {
-        if (fanSpeed === null || fanSpeed === undefined) return null;
-        var baseTemp = 30 - (fanSpeed * 2);
-        return baseTemp + (Math.random() * 2 - 1);
+    function getPodDisplayName(pod) {
+        return (pod && pod.name) ? pod.name : ('Pod ' + (pod ? pod.id : ''));
+    }
+
+    function getFanSpeedValue(pod) {
+        if (!pod || pod.fanSpeed === null || pod.fanSpeed === undefined) return 0;
+        return pod.fanSpeed;
     }
 
     function getDoorState(pod) {
@@ -601,7 +698,11 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         podId = String(podId);
         var pod = podsData.find(p => String(p.id) === podId);
         if (pod && !pod.suspended) {
-            pod.fanMode = pod.fanMode === 'M' ? 'A' : 'M';
+            pod.fanMode = pod.fanMode === 'A' ? 'M' : 'A';
+            if (pod.fanMode === 'A') {
+                pod.fanSpeed = pod.status === 'active' ? 3 : 0;
+            }
+            syncPodFanState(pod);
             updatePodCard(podId);
         }
     }
@@ -609,18 +710,48 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
     function changeFanSpeed(podId, change) {
         podId = String(podId);
         var pod = podsData.find(p => String(p.id) === podId);
-        if (pod && !pod.suspended && pod.fanMode === 'A') {
-            var currentSpeed = pod.fanSpeed || 3;
+        if (pod && !pod.suspended && pod.fanMode === 'M') {
+            var currentSpeed = getFanSpeedValue(pod);
             var newSpeed = currentSpeed + change;
             if (newSpeed >= 0 && newSpeed <= 5) {
-                if (!pod.usesLiveMetrics) {
-                    var targetTemp = calculateTargetTemperature(newSpeed);
-                    var currentTemp = pod.temperature || calculateTargetTemperature(3);
-                    pod.temperature = currentTemp + ((targetTemp - currentTemp) * 0.6);
-                }
                 pod.fanSpeed = newSpeed;
+                syncPodFanState(pod);
                 updatePodCard(podId);
             }
+        }
+    }
+
+    async function syncPodFanState(pod) {
+        if (!pod || pod.suspended || !pod.usesLiveMetrics) return;
+        try {
+            await fetch(FAN_API, {
+                method: 'POST',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fan_speed: getFanSpeedValue(pod), fan_mode: pod.fanMode || 'A' })
+            });
+        } catch (error) {
+            console.error('Error syncing fan state:', error);
+        }
+    }
+
+    async function syncPodLightState(pod, lightOn) {
+        if (!pod || pod.suspended || !pod.usesLiveMetrics) return;
+        try {
+            var response = await fetch(LIGHT_API + '?pod_id=' + encodeURIComponent(pod.id), {
+                method: 'POST',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ light_on: !!lightOn })
+            });
+            var payload = await response.json().catch(function() { return null; });
+            if (response.ok && payload && payload.ok === true && payload.esp_response) {
+                pod.lightOn = !!payload.esp_response.light_on;
+                pod.lightKnown = true;
+                updatePodCard(pod.id);
+            }
+        } catch (error) {
+            console.error('Error syncing light state:', error);
         }
     }
 
@@ -671,29 +802,24 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
     }
 
-    function simulateNonLivePodUpdates() {
-        if (podsData.length === 0) return;
-        for (var i = 0; i < podsData.length; i++) {
-            var pod = podsData[i];
-            if (!pod || pod.suspended || pod.usesLiveMetrics || pod.temperature === null) continue;
-
-            var targetTemp = calculateTargetTemperature(pod.fanSpeed || 3);
-            if (targetTemp !== null) {
-                var adjustment = (targetTemp - pod.temperature) * 0.05;
-                var newTemp = pod.temperature + adjustment + (Math.random() - 0.5) * 0.2;
-                newTemp = Math.round(newTemp * 10) / 10;
-                var minTemp = 18 + ((5 - (pod.fanSpeed || 3)) * 2);
-                var maxTemp = 30 - ((pod.fanSpeed || 3) * 2);
-                pod.temperature = Math.max(minTemp, Math.min(maxTemp, newTemp));
+    async function fetchAndApplyLightState() {
+        try {
+            var livePodId = getLiveSensorPodId();
+            var response = await fetch(LIGHT_API + '?pod_id=' + encodeURIComponent(livePodId), { cache: 'no-store' });
+            if (!response.ok) return;
+            var payload = await response.json();
+            if (!payload || payload.ok !== true || !payload.esp_response) return;
+            var lightOn = !!payload.esp_response.light_on;
+            for (var i = 0; i < podsData.length; i++) {
+                var pod = podsData[i];
+                if (!pod || !pod.usesLiveMetrics) continue;
+                pod.lightOn = lightOn;
+                pod.lightBusy = false;
+                pod.lightKnown = true;
+                updatePodCard(pod.id);
             }
-
-            var humidityDelta = (Math.random() - 0.5) * 1.6;
-            var nextHumidity = (pod.humidity === null || pod.humidity === undefined ? 55 : pod.humidity) + humidityDelta;
-            pod.humidity = Math.max(35, Math.min(80, Math.round(nextHumidity * 10) / 10));
-
-            var newAqi = (pod.aqi || 30) + Math.floor((Math.random() - 0.5) * 4);
-            pod.aqi = Math.max(20, Math.min(150, newAqi));
-            updatePodCard(pod.id);
+        } catch (error) {
+            console.error('Error reading light state:', error);
         }
     }
 
@@ -705,11 +831,30 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         pod._doorTimers = [];
     }
 
-    function triggerDoorUnlock(podId) {
+    async function triggerDoorUnlock(podId) {
         podId = String(podId);
         var pod = podsData.find(p => String(p.id) === podId);
         if (!pod) return;
         if (pod.doorTriggerPhase && pod.doorTriggerPhase !== 'idle') return;
+
+        if (pod.suspended) return;
+
+        try {
+            var response = await fetch(DOOR_UNLOCK_API + '?pod_id=' + encodeURIComponent(podId), {
+                method: 'POST',
+                cache: 'no-store'
+            });
+            var payload = await response.json().catch(function() { return null; });
+            if (!response.ok || !payload || payload.ok !== true) {
+                var message = payload && payload.error ? payload.error : 'Failed to contact the pod door controller.';
+                alert(message);
+                return;
+            }
+        } catch (error) {
+            console.error('Error triggering pod door unlock:', error);
+            alert('Failed to contact the pod door controller.');
+            return;
+        }
 
         clearDoorTimers(pod);
         pod.doorTriggerPhase = 'cooldown';
@@ -724,6 +869,40 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                 updatePodCard(podId);
             }, 1200));
         }, 5000));
+    }
+
+    async function togglePodLight(podId) {
+        podId = String(podId);
+        var pod = podsData.find(p => String(p.id) === podId);
+        if (!pod || pod.suspended || !pod.usesLiveMetrics || pod.lightBusy || !pod.lightKnown) return;
+
+        pod.lightBusy = true;
+        updatePodCard(podId);
+
+        try {
+            var response = await fetch(LIGHT_API + '?pod_id=' + encodeURIComponent(podId), {
+                method: 'POST',
+                cache: 'no-store'
+            });
+            var payload = await response.json().catch(function() { return null; });
+            if (!response.ok || !payload || payload.ok !== true || !payload.esp_response) {
+                var message = payload && payload.error ? payload.error : 'Failed to update the pod light.';
+                pod.lightBusy = false;
+                updatePodCard(podId);
+                alert(message);
+                return;
+            }
+
+            pod.lightOn = !!payload.esp_response.light_on;
+            pod.lightBusy = false;
+            pod.lightKnown = true;
+            updatePodCard(podId);
+        } catch (error) {
+            console.error('Error toggling pod light:', error);
+            pod.lightBusy = false;
+            updatePodCard(podId);
+            alert('Failed to update the pod light.');
+        }
     }
 
     async function suspendPod(podId) {
@@ -814,7 +993,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         var statusElement = podCard.find('.pod-status');
         if (statusElement.length) {
             statusElement.text(pod.status);
-            statusElement.removeClass('available occupied maintenance cleaning suspended idle').addClass(pod.status);
+            statusElement.removeClass('available active maintenance cleaning suspended idle').addClass(pod.status);
         }
         var doorElement = podCard.find('.door-value');
         if (doorElement.length) {
@@ -831,20 +1010,30 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                  .prop('disabled', !!doorBtnState.disabled);
             doorBtn.find('.door-btn-label').text(doorBtnState.buttonText);
         }
-        $('#pod-' + pod.id + '-fanspeed').text(pod.fanSpeed || 3);
+        var lightBtn = podCard.find('.light-toggle-btn');
+        if (lightBtn.length) {
+            lightBtn.toggleClass('is-on', !!pod.lightOn);
+            lightBtn.toggleClass('is-off', !pod.lightOn);
+            lightBtn.toggleClass('is-pending', !!pod.lightBusy);
+            lightBtn.toggleClass('is-unknown', !pod.lightKnown);
+            lightBtn.prop('disabled', !!pod.suspended || !!pod.lightBusy || !pod.usesLiveMetrics || !pod.lightKnown);
+            lightBtn.attr('title', getLightButtonTitle(pod));
+            lightBtn.attr('aria-label', getLightButtonTitle(pod));
+        }
+        $('#pod-' + pod.id + '-fanspeed').text(getFanSpeedValue(pod));
         var modeBtn = $('#pod-' + pod.id + '-fan-mode');
         if (modeBtn.length) {
-            modeBtn.text(pod.fanMode || 'M');
-            modeBtn.toggleClass('manual', pod.fanMode === 'A');
+            modeBtn.text(pod.fanMode || 'A');
+            modeBtn.toggleClass('manual', pod.fanMode === 'M');
         }
-        var isManualMode = pod.fanMode === 'A';
+        var isManualMode = pod.fanMode === 'M';
         var isDisabled = pod.suspended || !isManualMode;
         var controlsWrap = podCard.find('.fan-controls');
         if (controlsWrap.length) {
             controlsWrap.toggleClass('fan-control-disabled', !isManualMode);
         }
-        $('#pod-' + pod.id + '-btn-minus').prop('disabled', isDisabled || (pod.fanSpeed || 3) === 0);
-        $('#pod-' + pod.id + '-btn-plus').prop('disabled', isDisabled || (pod.fanSpeed || 3) === 5);
+        $('#pod-' + pod.id + '-btn-minus').prop('disabled', isDisabled || getFanSpeedValue(pod) === 0);
+        $('#pod-' + pod.id + '-btn-plus').prop('disabled', isDisabled || getFanSpeedValue(pod) === 5);
     }
 
     function generatePodCard(pod) {
@@ -854,7 +1043,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         var tempDisplay = (pod.suspended || pod.temperature === null) ? '<span class="grayed-out">NULL</span>' : pod.temperature.toFixed(1) + '°C';
         var humidityDisplay = (pod.suspended || pod.humidity === null) ? '<span class="grayed-out">NULL</span>' : pod.humidity.toFixed(1) + '%';
         var podIdEscaped = String(pod.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-        var isManualMode = pod.fanMode === 'A';
+        var isManualMode = pod.fanMode === 'M';
         var isDisabled = pod.suspended || !isManualMode;
 
         var fanSpeedHTML = '';
@@ -867,13 +1056,13 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                             id="pod-${pod.id}-fan-mode"
                             onclick="toggleFanMode('${podIdEscaped}')"
                             title="${isManualMode ? 'Manual Mode' : 'Auto Mode'}">
-                        ${pod.fanMode || 'M'}
+                        ${pod.fanMode || 'A'}
                     </button>
                     <div class="fan-controls flex items-center gap-1.5 ${!isManualMode ? 'fan-control-disabled' : ''}">
                         <button class="fan-btn" id="pod-${pod.id}-btn-minus"
                                 onclick="changeFanSpeed('${podIdEscaped}', -1)"
                                 ${isDisabled || pod.fanSpeed === 0 ? 'disabled' : ''}>−</button>
-                        <span class="font-bold text-lg text-gray-800 min-w-[20px] text-center" id="pod-${pod.id}-fanspeed">${pod.fanSpeed || 3}</span>
+                        <span class="font-bold text-lg text-gray-800 min-w-[20px] text-center" id="pod-${pod.id}-fanspeed">${getFanSpeedValue(pod)}</span>
                         <button class="fan-btn" id="pod-${pod.id}-btn-plus"
                                 onclick="changeFanSpeed('${podIdEscaped}', 1)"
                                 ${isDisabled || pod.fanSpeed === 5 ? 'disabled' : ''}>+</button>
@@ -919,7 +1108,20 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                                 <i class="fa fa-building text-gray-400"></i>
                                 <span class="whitespace-nowrap">${getPodDisplayName(pod)}</span>
                             </div>
-                            <div class="pod-status ${pod.status}">${pod.status}</div>
+                            <div class="pod-top-actions">
+                                <button class="light-toggle-btn ${pod.lightOn ? 'is-on' : 'is-off'} ${pod.lightBusy ? 'is-pending' : ''} ${!pod.lightKnown ? 'is-unknown' : ''}"
+                                        onclick="togglePodLight('${podIdEscaped}')"
+                                        ${pod.suspended || !pod.usesLiveMetrics || !pod.lightKnown ? 'disabled' : ''}
+                                        title="${getLightButtonTitle(pod)}"
+                                        aria-label="Toggle pod light">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M9 18h6"></path>
+                                        <path d="M10 21h4"></path>
+                                        <path d="M8.7 14.3C7.6 13.2 7 11.7 7 10a5 5 0 1110 0c0 1.7-.6 3.2-1.7 4.3-.7.7-1.1 1.4-1.3 2.2H10c-.2-.8-.6-1.5-1.3-2.2z"></path>
+                                    </svg>
+                                </button>
+                                <div class="pod-status ${pod.status}">${pod.status}</div>
+                            </div>
                         </div>
                         <div class="mt-4 mb-[-6px] whitespace-nowrap text-sm text-gray-500 font-medium flex items-center justify-center">
                             <i class="fa fa-users text-green-500 mr-1"></i>
