@@ -1563,6 +1563,24 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
         var currentPodModalBookingId = null;
         var podModalStateCache = {};
         var podLiveStateRefreshTimer = null;
+        var localCompletedBookingIds = loadLocalCompletedBookingIds();
+
+        function loadLocalCompletedBookingIds() {
+            try {
+                return JSON.parse(localStorage.getItem('fortiroom_completed_bookings') || '{}') || {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        function markBookingCompletedLocally(bookingId) {
+            localCompletedBookingIds[String(bookingId)] = true;
+            try {
+                localStorage.setItem('fortiroom_completed_bookings', JSON.stringify(localCompletedBookingIds));
+            } catch (error) {
+                console.warn('Could not persist local checkout status:', error);
+            }
+        }
 
         function getDefaultAccessRules() {
             return {
@@ -1785,7 +1803,11 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             return date.toLocaleDateString('en-US', options);
         }
         
-        function getBookingStatus(bookingDate, checkIn, checkOut) {
+        function getBookingStatus(bookingDate, checkIn, checkOut, savedStatus) {
+            if (String(savedStatus || '').toLowerCase() === 'completed') {
+                return 'completed';
+            }
+
             var now = new Date();
             var checkInDateTime = new Date(bookingDate + 'T' + checkIn + ':00');
             var checkOutDateTime = new Date(bookingDate + 'T' + checkOut + ':00');
@@ -2135,13 +2157,29 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             }
             
             try {
-                // Load all bookings for the current user
-                const { data: bookings, error: bookingsError } = await supabase
+                // Load all bookings where the current user is either primary or secondary.
+                var bookingSelect = 'id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people, secondary_user_id, secondary_user_username, status';
+                var bookingQuery = supabase
                     .from('bookings')
-                    .select('id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people, secondary_user_id, secondary_user_username')
-                    .eq('user_id', currentUser.id)
+                    .select(bookingSelect)
+                    .or('user_id.eq.' + currentUser.id + ',secondary_user_id.eq.' + currentUser.id)
                     .order('booking_date', { ascending: false })
                     .order('check_in_time', { ascending: true });
+                var bookingResult = await bookingQuery;
+                var bookings = bookingResult.data;
+                var bookingsError = bookingResult.error;
+
+                if (bookingsError && /status|schema cache|column/i.test(bookingsError.message || bookingsError.toString() || '')) {
+                    console.warn('Retrying bookings load without optional status column:', bookingsError);
+                    var fallbackResult = await supabase
+                        .from('bookings')
+                        .select('id, user_id, pod_id, booking_date, check_in_time, check_out_time, number_of_people, secondary_user_id, secondary_user_username')
+                        .or('user_id.eq.' + currentUser.id + ',secondary_user_id.eq.' + currentUser.id)
+                        .order('booking_date', { ascending: false })
+                        .order('check_in_time', { ascending: true });
+                    bookings = fallbackResult.data;
+                    bookingsError = fallbackResult.error;
+                }
                 
                 if (bookingsError) {
                     console.error('Error loading bookings:', bookingsError);
@@ -2195,7 +2233,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     
                     return {
                         id: booking.id,
-                        createdBy: currentUser.user_metadata?.username || currentUser.email || 'Current User',
+                        createdBy: booking.user_id === currentUser.id ? (currentUser.user_metadata?.username || currentUser.email || 'Current User') : 'Primary User',
                         createdById: booking.user_id || currentUser.id,
                         secondaryUser: booking.secondary_user_username || '',
                         secondaryUserId: booking.secondary_user_id || '',
@@ -2205,7 +2243,8 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                         checkIn: checkInTime,
                         checkOut: checkOutTime,
                         duration: duration,
-                        occupants: booking.number_of_people || 1
+                        occupants: booking.number_of_people || 1,
+                        status: localCompletedBookingIds[String(booking.id)] ? 'completed' : (booking.status || '')
                     };
                 });
                 
@@ -2573,7 +2612,37 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                     return;
                 }
 
+                const { error: updateError } = await supabase
+                    .from('bookings')
+                    .update({ status: 'completed' })
+                    .eq('id', booking.id)
+                    .eq('user_id', currentUser.id);
+
+                if (updateError) {
+                    console.error('Error updating booking status after checkout, using local completion fallback:', updateError);
+                }
+
+                booking.status = 'completed';
+                markBookingCompletedLocally(booking.id);
                 alert('Checkout complete. The room display will show Checkout Complete.');
+                closePodControlsModal();
+                await loadBookings();
+                if (dataTable) {
+                    dataTable.fnDestroy();
+                    dataTable = null;
+                }
+                populateBookingsTable();
+                dataTable = $('#dataTables-example').dataTable({
+                    "order": [[ 2, "asc" ]],
+                    "paging": false,
+                    "searching": false,
+                    "info": false,
+                    "language": {
+                        "emptyTable": "",
+                        "zeroRecords": ""
+                    }
+                });
+                applyFilters();
                 await refreshPodControlsModal();
             } catch (error) {
                 console.error('Error completing checkout:', error);
@@ -2593,7 +2662,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             $('#noResultsBody').hide();
             
             bookingsData.forEach(function(booking) {
-                var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut);
+                var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut, booking.status);
                 var statusClass = 'status-' + status;
                 var statusText = '';
                 
@@ -2602,7 +2671,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 
                 // Check if booking can be cancelled
                 var canCancel = canCancelBooking(status);
-                var canOpenPods = status !== 'completed';
+                var canOpenPods = status === 'in-progress-occupied';
                 var cancelButtonHtml = '';
                 var podsButtonHtml = '';
                 
@@ -2617,7 +2686,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
                 if (canOpenPods) {
                     podsButtonHtml = '<button class="btn btn-sm btn-pods" onclick="openPodControlsModal(\'' + booking.id + '\')"><i class="fa fa-building"></i> Pods</button>';
                 } else {
-                    podsButtonHtml = '<button class="btn btn-sm btn-pods disabled" disabled title="Pod controls are unavailable for completed bookings"><i class="fa fa-building"></i> Pods</button>';
+                    podsButtonHtml = '<button class="btn btn-sm btn-pods disabled" disabled title="Pod controls are only available while the booking is In Use"><i class="fa fa-building"></i> Pods</button>';
                 }
                 
                 var row = '<tr data-status="' + status + '" data-date="' + booking.date + '" data-pod="' + booking.room + '" data-booking-id="' + booking.id + '">' +
@@ -2729,7 +2798,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             var booking = bookingsData.find(b => b.id === bookingId);
             if (!booking) return;
             
-            var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut);
+            var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut, booking.status);
             var statusText = '';
             var statusClass = '';
             
@@ -3566,7 +3635,7 @@ $SUPABASE_SERVICE_KEY = $_ENV['SUPABASE_SERVICE_KEY'] ?? '';
             }
             
             // Check booking status
-            var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut);
+            var status = getBookingStatus(booking.date, booking.checkIn, booking.checkOut, booking.status);
             
             // Check if booking can be cancelled (not in progress)
             if (!canCancelBooking(status)) {

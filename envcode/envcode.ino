@@ -89,7 +89,7 @@ const char* PREF_NAMESPACE = "fortiroom";
 const bool USE_HARDCODED_WIFI = true;
 const char* HARDCODED_WIFI_SSID = "Guest@HELP";
 const char* HARDCODED_WIFI_PASS = "guEST@HELP";
-const char* DEFAULT_SERVER_BASE_URL = "http://10.150.213.28/Fortiroom";
+const char* DEFAULT_SERVER_BASE_URL = "http://10.150.215.215/Fortiroom";
 const char* ENV_REGISTRY_PATH = "/esp32_env_registry.php";
 const char* BOOKING_STATUS_PATH = "/env_booking_status.php";
 const char* ENV_DEVICE_ID = "fortiroom-main";
@@ -1493,7 +1493,7 @@ static bool fetchBookingStatus() {
   if (!wifiReady || portalMode || WiFi.status() != WL_CONNECTED) return false;
 
   String url = getServerBaseUrl() + BOOKING_STATUS_PATH + "?pod_id=1";
-  String host = "10.150.213.28";
+  String host = "10.150.215.215";
   String path = String("/Fortiroom") + BOOKING_STATUS_PATH + "?pod_id=1";
   Serial.print("Fetching booking status: ");
   Serial.println(url);

@@ -54,15 +54,15 @@ const byte DNS_PORT = 53;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 const char* PREF_NAMESPACE = "fortiroom";
 const bool USE_HARDCODED_WIFI = true;
-const char* HARDCODED_WIFI_SSID = "Phone";
-const char* HARDCODED_WIFI_PASS = "bsyh4912";
+const char* HARDCODED_WIFI_SSID = "Guest@HELP";
+const char* HARDCODED_WIFI_PASS = "guEST@HELP";
 const uint16_t TELNET_PORT = 23;
 const size_t TELNET_CLIENT_SLOTS = 2;
 const size_t LOG_BUFFER_LINES = 120;
 const size_t WIFI_SCAN_CACHE_LIMIT = 20;
 // Change this when your XAMPP/laptop IP changes.
 // Example: http://10.150.211.78/Fortiroom
-const char* DEFAULT_SERVER_BASE_URL = "http://172.20.10.13/Fortiroom";
+const char* DEFAULT_SERVER_BASE_URL = "http://10.150.215.215/Fortiroom";
 const char* CAMERA_REGISTRY_PATH = "/esp32_cam_registry.php";
 const char* FACE_VERIFY_PATH = "/face_verify_api.php";
 const char* CAMERA_DEVICE_ID = "fortiroom-cam";
