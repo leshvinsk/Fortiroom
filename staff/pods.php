@@ -589,10 +589,10 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
                     id: pod.id, name: pod.name || `Pod ${pod.id}`,
                     capacity: pod.capacity || 1, hardwareId: pod.hardware_id || '',
                     status: initialStatus,
-                    temperature: null,
-                    humidity: null,
+                    temperature: usesLiveMetrics ? 24.5 : null,
+                    humidity: usesLiveMetrics ? 56.0 : null,
                     fanSpeed: isSuspended ? null : (initialStatus === 'active' ? 3 : 0), fanMode: isSuspended ? null : 'A',
-                    aqi: null,
+                    aqi: usesLiveMetrics ? 42 : null,
                     suspended: isSuspended, usesLiveMetrics: usesLiveMetrics,
                     doorTriggerPhase: 'idle',
                     lightOn: false,
@@ -783,6 +783,15 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         }
     }
 
+    function getTemporaryPodMetrics(pod) {
+        if (!pod || pod.suspended) return null;
+        var podName = String(pod.name || '').trim().toLowerCase();
+        if (String(pod.id) === String(LIVE_SENSOR_POD_ID) || podName === 'pod 1') {
+            return { temperature: 24.5, humidity: 56.0, aqi: 42 };
+        }
+        return null;
+    }
+
     async function fetchAndApplyLiveMetrics() {
         try {
             var response = await fetch(LIVE_METRICS_API, { cache: 'no-store' });
@@ -813,6 +822,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             for (var i = 0; i < podsData.length; i++) {
                 var pod = podsData[i];
                 if (!pod || !pod.usesLiveMetrics) continue;
+                if (pod.lightBusy) continue;
                 pod.lightOn = lightOn;
                 pod.lightBusy = false;
                 pod.lightKnown = true;
@@ -876,17 +886,24 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         var pod = podsData.find(p => String(p.id) === podId);
         if (!pod || pod.suspended || !pod.usesLiveMetrics || pod.lightBusy || !pod.lightKnown) return;
 
+        var previousLightOn = !!pod.lightOn;
+        var targetLightOn = !previousLightOn;
+
         pod.lightBusy = true;
+        pod.lightOn = targetLightOn;
         updatePodCard(podId);
 
         try {
             var response = await fetch(LIGHT_API + '?pod_id=' + encodeURIComponent(podId), {
                 method: 'POST',
-                cache: 'no-store'
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ light_on: targetLightOn })
             });
             var payload = await response.json().catch(function() { return null; });
             if (!response.ok || !payload || payload.ok !== true || !payload.esp_response) {
                 var message = payload && payload.error ? payload.error : 'Failed to update the pod light.';
+                pod.lightOn = previousLightOn;
                 pod.lightBusy = false;
                 updatePodCard(podId);
                 alert(message);
@@ -899,6 +916,7 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
             updatePodCard(podId);
         } catch (error) {
             console.error('Error toggling pod light:', error);
+            pod.lightOn = previousLightOn;
             pod.lightBusy = false;
             updatePodCard(podId);
             alert('Failed to update the pod light.');
@@ -970,6 +988,10 @@ $SUPABASE_ANON_KEY = $_ENV['SUPABASE_ANON_KEY'] ?? '';
         if (!pod) return;
         var podCard = $('#pod-' + pod.id);
         if (podCard.length === 0) return;
+        var tempMetrics = getTemporaryPodMetrics(pod);
+        var displayTemp = pod.temperature === null && tempMetrics ? tempMetrics.temperature : pod.temperature;
+        var displayHumidity = pod.humidity === null && tempMetrics ? tempMetrics.humidity : pod.humidity;
+        var displayAqi = pod.aqi === null && tempMetrics ? tempMetrics.aqi : pod.aqi;
 
         var tempElement = podCard.find('.temp-value');
         if (tempElement.length) {

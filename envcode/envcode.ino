@@ -87,20 +87,22 @@ const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 const unsigned long WIFI_TCP_CONNECT_TIMEOUT_MS = 8000;
 const char* PREF_NAMESPACE = "fortiroom";
 const bool USE_HARDCODED_WIFI = true;
-const char* HARDCODED_WIFI_SSID = "Guest@HELP";
-const char* HARDCODED_WIFI_PASS = "guEST@HELP";
-const char* DEFAULT_SERVER_BASE_URL = "http://10.150.215.215/Fortiroom";
+const char* HARDCODED_WIFI_SSID = "MYSEP-Student";
+const char* HARDCODED_WIFI_PASS = "Tenby2018";
+const char* DEFAULT_SERVER_BASE_URL = "http://10.3.40.216/Fortiroom";
 const char* ENV_REGISTRY_PATH = "/esp32_env_registry.php";
 const char* BOOKING_STATUS_PATH = "/env_booking_status.php";
 const char* ENV_DEVICE_ID = "fortiroom-main";
 const unsigned long ENV_REGISTRY_REPORT_INTERVAL_MS = 60000;
 const unsigned long ENV_REGISTRY_RETRY_INTERVAL_MS = 15000;
-const unsigned long BOOKING_POLL_MS = 5000;
+const unsigned long BOOKING_POLL_MS = 30000;
+const unsigned long BOOKING_POLL_RETRY_MS = 15000;
 const unsigned long CAMERA_BUTTON_POLL_MS = 700;
 const unsigned long DOOR_UNLOCK_MS = 5000;
 const unsigned long DOOR_RELOCKING_MS = 1200;
 const unsigned long CHECKOUT_MOTION_MONITOR_MS = 15UL * 60UL * 1000UL;
 const unsigned long CHECKOUT_MOTION_ARM_DELAY_MS = 2500;
+const unsigned long SERVER_ACTIVITY_COOLDOWN_MS = 2500;
 
 // ---------------- NTP ----------------
 const long GMT_OFFSET_SEC = 8 * 3600;
@@ -202,7 +204,9 @@ struct BookingStatusState {
 
 static BookingStatusState gBookingStatus;
 static unsigned long lastBookingPollMs = 0;
+static unsigned long gBookingPollIntervalMs = BOOKING_POLL_MS;
 static unsigned long lastCameraButtonPollMs = 0;
+static unsigned long gLastServerActivityMs = 0;
 static unsigned long statusMessageUntilMs = 0;
 static String statusMessageLine1;
 static String statusMessageLine2;
@@ -1454,6 +1458,17 @@ static void showTransientStatus(const String &line1, const String &line2, const 
   statusMessageUntilMs = millis() + durationMs;
 }
 
+static inline void noteServerActivity() {
+  gLastServerActivityMs = millis();
+}
+
+static bool shouldDeferBookingPoll(unsigned long nowMs) {
+  if (gBookingStatus.verificationInProgress || gVerificationTaskRunning) return true;
+  if (gCheckoutMonitorActive && gCheckoutPenaltyReported) return true;
+  if (gLastServerActivityMs != 0 && (nowMs - gLastServerActivityMs) < SERVER_ACTIVITY_COOLDOWN_MS) return true;
+  return false;
+}
+
 static String currentBookingWindowKey() {
   if (gBookingStatus.windowKey.length() > 0) {
     return gBookingStatus.windowKey;
@@ -1493,87 +1508,37 @@ static bool fetchBookingStatus() {
   if (!wifiReady || portalMode || WiFi.status() != WL_CONNECTED) return false;
 
   String url = getServerBaseUrl() + BOOKING_STATUS_PATH + "?pod_id=1";
-  String host = "10.150.215.215";
-  String path = String("/Fortiroom") + BOOKING_STATUS_PATH + "?pod_id=1";
-  Serial.print("Fetching booking status: ");
-  Serial.println(url);
-  Serial.print("ESP WiFi IP=");
-  Serial.print(WiFi.localIP());
-  Serial.print(" gateway=");
-  Serial.print(WiFi.gatewayIP());
-  Serial.print(" RSSI=");
-  Serial.println(WiFi.RSSI());
-  bool tcpReachable = false;
-  for (int attempt = 1; attempt <= 3; attempt++) {
-    WiFiClient probeClient;
-    probeClient.setTimeout(WIFI_TCP_CONNECT_TIMEOUT_MS / 1000);
-    Serial.print("Booking status TCP probe attempt ");
-    Serial.print(attempt);
-    Serial.print("/3...");
-    if (probeClient.connect(host.c_str(), 80, WIFI_TCP_CONNECT_TIMEOUT_MS)) {
-      Serial.println(" OK");
-      tcpReachable = true;
-      probeClient.stop();
-      break;
-    }
-    Serial.println(" failed");
-    probeClient.stop();
-    delay(250);
-  }
-  if (!tcpReachable) {
-    Serial.println("Booking status TCP probe failed: cannot connect to 172.20.10.13:80 after retries");
-    return false;
-  }
-
   WiFiClient client;
-  client.setTimeout(15000);
-  if (!client.connect(host.c_str(), 80, WIFI_TCP_CONNECT_TIMEOUT_MS)) {
-    Serial.println("Booking status raw HTTP connect failed");
+  HTTPClient http;
+  http.useHTTP10(true);
+  http.setConnectTimeout(2000);
+  http.setTimeout(2500);
+  if (!http.begin(client, url)) {
+    Serial.println("Booking status request init failed");
     return false;
   }
+  http.addHeader("Accept", "application/json");
+  http.addHeader("Connection", "close");
+  noteServerActivity();
 
-  client.print(String("GET ") + path + " HTTP/1.1\r\n");
-  client.print(String("Host: ") + host + "\r\n");
-  client.print("Accept: application/json\r\n");
-  client.print("Connection: close\r\n\r\n");
-
-  unsigned long startMs = millis();
-  while (!client.available() && (millis() - startMs) < 15000) {
-    delay(10);
-  }
-
-  String response = "";
-  while (client.connected() || client.available()) {
-    while (client.available()) {
-      response += (char)client.read();
-      if (response.length() > 12000) {
-        break;
-      }
-    }
-    if (response.length() > 12000) {
-      break;
-    }
-    delay(1);
-  }
-  client.stop();
-
-  int statusCode = 0;
-  int statusPos = response.indexOf("HTTP/");
-  if (statusPos >= 0) {
-    int firstSpace = response.indexOf(' ', statusPos);
-    if (firstSpace > 0 && firstSpace + 4 <= (int)response.length()) {
-      statusCode = response.substring(firstSpace + 1, firstSpace + 4).toInt();
-    }
-  }
-
-  int bodyStart = response.indexOf("\r\n\r\n");
-  String body = bodyStart >= 0 ? response.substring(bodyStart + 4) : "";
+  int statusCode = http.GET();
+  String body = http.getString();
+  String httpError = (statusCode < 0) ? http.errorToString(statusCode) : "";
+  http.end();
 
   if (statusCode < 200 || statusCode >= 300) {
     Serial.print("Booking status fetch failed (");
     Serial.print(statusCode);
-    Serial.print("): ");
-    Serial.println(body);
+    Serial.print(")");
+    if (httpError.length() > 0) {
+      Serial.print(" ");
+      Serial.print(httpError);
+    }
+    if (body.length() > 0) {
+      Serial.print(": ");
+      Serial.print(body);
+    }
+    Serial.println();
     return false;
   }
 
@@ -1615,6 +1580,7 @@ static bool pollCameraButton(String &triggerCaptureUrl) {
   if (!http.begin(client, gBookingStatus.cameraButtonUrl)) {
     return false;
   }
+  noteServerActivity();
 
   int statusCode = http.GET();
   String body = http.getString();
@@ -1655,6 +1621,7 @@ static bool verifyCurrentBookingFace(const String &captureUrl) {
   }
 
   http.addHeader("Content-Type", "application/json");
+  noteServerActivity();
   int statusCode = http.POST(payload);
   String body = http.getString();
   http.end();
@@ -1695,6 +1662,7 @@ static bool verifyBookingUserFace(const String &username, const String &captureU
   }
 
   http.addHeader("Content-Type", "application/json");
+  noteServerActivity();
   int statusCode = http.POST(payload);
   String body = http.getString();
   http.end();
@@ -1851,6 +1819,7 @@ static bool reportCheckoutMotionPenalty() {
     return false;
   }
   http.addHeader("Content-Type", "application/json");
+  noteServerActivity();
   int statusCode = http.POST(payload);
   String body = http.getString();
   http.end();
@@ -1973,9 +1942,12 @@ void loop() {
   }
 
   reportEnvRegistration(false);
-  if (lastBookingPollMs == 0 || (nowMs - lastBookingPollMs) >= BOOKING_POLL_MS) {
-    lastBookingPollMs = nowMs;
-    fetchBookingStatus();
+  if (lastBookingPollMs == 0 || (nowMs - lastBookingPollMs) >= gBookingPollIntervalMs) {
+    if (!shouldDeferBookingPoll(nowMs)) {
+      lastBookingPollMs = nowMs;
+      bool bookingOk = fetchBookingStatus();
+      gBookingPollIntervalMs = bookingOk ? BOOKING_POLL_MS : BOOKING_POLL_RETRY_MS;
+    }
   }
   updateDoorRelay();
   updateFanOutput();
